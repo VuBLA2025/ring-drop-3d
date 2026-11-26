@@ -43,14 +43,24 @@ html, body {
   padding: 0;
   gap: 0;
   background: #000;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .shell.obs-mode .panel {
   display: none;
 }
 
+.shell.obs-mode .stage-wrap {
+  width: 100%;
+  height: 100%;
+}
+
 .shell.obs-mode .stage-frame {
-  height: 100vh;
+  width: min(100vw, calc(100dvh * 9 / 16));
+  height: min(100dvh, calc(100vw * 16 / 9));
+  aspect-ratio: 9 / 16;
   border-radius: 0;
   border: none;
   box-shadow: none;
@@ -907,7 +917,7 @@ html, body {
 .hidden { display: none !important; }
 
 @media (max-width: 900px) {
-  .shell { flex-direction: column; height: auto; min-height: 100vh; overflow-y: auto; }
-  .stage-frame { height: 82vh; }
+  .shell:not(.obs-mode) { flex-direction: column; height: auto; min-height: 100vh; overflow-y: auto; }
+  .shell:not(.obs-mode) .stage-frame { height: 82vh; }
   .panel { width: min(440px, 94vw); max-height: none; }
 }

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>RING DROP 3D — Stage 9:16 | TikTok LIVE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "../lib/three.module.min.js",
+        "three/addons/": "../lib/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="shell obs-mode stage-only" id="appShell">
+    <!-- Fullscreen 9:16 Portrait 3D Arena Stage (OBS / TikTok LIVE Ready) -->
+    <main class="stage-wrap">
+      <div class="stage-frame" id="stageFrame">
+        <div id="threeMount"></div>
+        <div class="overlay-layer" id="overlayLayer"></div>
+
+        <!-- Broadcast HUD -->
+        <div class="hud">
+          <div class="hud-top">
+            <div class="live-badge">
+              <span class="dot"></span>
+              <span>LIVE</span>
+              <span class="sep"></span>
+              <span id="viewerCount">3.4K</span>
+            </div>
+            <div class="round-pill">
+              <span>ROUND <b id="roundNum">1</b></span>
+              <span class="sep"></span>
+              <span>ALIVE <b id="aliveCount">0</b></span>
+            </div>
+          </div>
+
+          <div class="shrink-bar-card">
+            <div class="shrink-meta">
+              <span class="shrink-label" id="shrinkLabel">THU HẸP SÀN ĐẤU</span>
+              <span class="shrink-timer" id="shrinkTimer">15.0s</span>
+            </div>
+            <div class="shrink-track">
+              <div class="shrink-fill" id="shrinkFill"></div>
+            </div>
+          </div>
+
+          <div class="gift-spotlight-wrap" id="giftSpotlightWrap"></div>
+          <div class="kill-feed" id="killFeed"></div>
+          <div class="center-callout" id="centerCallout"></div>
+
+          <div class="hud-bottom">
+            <div class="mc-subtitle hidden" id="mcSubtitle">
+              <div class="eq-bars" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </div>
+              <span class="mc-label">MC</span>
+              <span class="mc-text" id="mcSubtitleText"></span>
+            </div>
+
+            <div class="gift-board" id="giftBoard">
+              <div class="gb-header">
+                <span class="gb-title">BẢNG QUÀ &amp; LỆNH CHƠI</span>
+                <span class="gb-hint">Tặng quà được MC hô tên ngay!</span>
+              </div>
+              <div class="gb-grid">
+                <div class="gb-item free">
+                  <span class="gb-icon">💬</span>
+                  <div class="gb-txt">
+                    <b>Comment</b>
+                    <span>Bi Kiếm</span>
+                  </div>
+                </div>
+                <div class="gb-item free">
+                  <span class="gb-icon">❤️</span>
+                  <div class="gb-txt">
+                    <b>Thả Tim</b>
+                    <span>Hộp Buff</span>
+                  </div>
+                </div>
+                <div class="gb-item free">
+                  <span class="gb-icon">➕</span>
+                  <div class="gb-txt">
+                    <b>Follow</b>
+                    <span>Bi Chùy Gai</span>
+                  </div>
+                </div>
+                <div class="gb-item rose">
+                  <span class="gb-icon">🌹</span>
+                  <div class="gb-txt">
+                    <b>Hoa Hồng</b>
+                    <span>Bi Lưỡi Cưa</span>
+                  </div>
+                </div>
+                <div class="gb-item bomb">
+                  <span class="gb-icon">🍩</span>
+                  <div class="gb-txt">
+                    <b>Donut</b>
+                    <span>Bom Nổ Sàn</span>
+                  </div>
+                </div>
+                <div class="gb-item collapse">
+                  <span class="gb-icon">🕶️</span>
+                  <div class="gb-txt">
+                    <b>Kính Râm</b>
+                    <span>Sập Vòng Sàn</span>
+                  </div>
+                </div>
+                <div class="gb-item titan span-2">
+                  <span class="gb-icon">🦁</span>
+                  <div class="gb-txt">
+                    <b>Sư Tử / Thiên Hà</b>
+                    <span>BOSS TITAN VÀNG • 4 ĐẠI KIẾM • NỨT SÀN</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Round Winner Card -->
+        <div class="winner-modal hidden" id="winnerModal">
+          <div class="winner-box">
+            <span class="winner-eyebrow">CHAMPION • ROUND <b id="winRound">1</b></span>
+            <h2 id="winnerName">—</h2>
+            <div class="winner-stats">
+              <div>
+                <span>KILLS</span>
+                <strong id="winnerKills">0</strong>
+              </div>
+              <div>
+                <span>VŨ KHÍ</span>
+                <strong id="winnerWeapon">BLADE</strong>
+              </div>
+            </div>
+            <div class="winner-next">Ván mới bắt đầu sau <b id="nextRoundSec">4</b>s...</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../audio.js"></script>
+  <script type="module" src="../game.js"></script>
+</body>
+</html>

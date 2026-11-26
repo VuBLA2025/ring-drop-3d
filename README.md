@@ -16,7 +16,16 @@ Chạy một HTTP server tĩnh bất kỳ trong thư mục dự án:
 python -m http.server 8766
 ```
 
-Sau đó mở trình duyệt tại `http://localhost:8766/`.
+Sau đó mở trình duyệt tại `http://localhost:8766/` (giao diện điều khiển) hoặc `http://localhost:8766/stage` (màn hình 9:16 sạch mặc định).
+
+## Link Stage 9:16 cho OBS / TikTok LIVE Studio
+Mở trực tiếp đường dẫn `/stage` (ví dụ `https://ringdrop.bla.io.vn/stage`) để hiển thị mặc định khung dọc **9:16** sạch, không hiện bảng điều khiển:
+- `https://ringdrop.bla.io.vn/stage` — Mặc định 9:16 đầy đủ (tự chạy giả lập + giọng MC + Bảng Quà)
+- Tùy chọn tham số URL:
+  - `?auto=0` — Tắt bot giả lập (chỉ nhận sự kiện thật từ `RingDropAPI`)
+  - `?board=0` — Ẩn Bảng Quà ở chân màn hình
+  - `?voice=0` hoặc `?hype=0` — Tắt giọng MC hoặc lời kêu gọi định kỳ
+  - `?pace=normal|fast|mayhem` — Tốc độ phòng Live giả lập
 
 ## Phím tắt giả lập nhanh
 - `1` — 💬 Comment • Bi Kiếm

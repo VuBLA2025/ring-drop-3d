@@ -1329,6 +1329,7 @@ function updateAliveHUD() {
 }
 
 function renderLeaderboard() {
+  if (!elLbList) return;
   const sorted = [...winCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   if (sorted.length === 0) return;
   elLbList.innerHTML = sorted
@@ -1885,29 +1886,40 @@ window.addEventListener('keydown', (e) => {
   else if (e.key.toLowerCase() === 'h') window.arenaVoice.speakHype();
 });
 
-// MC Voice, Auto-Hype & On-Screen Gift Board controls
+// MC Voice, Auto-Hype & On-Screen Gift Board controls (null-safe for /stage route)
 const toggleVoice = document.getElementById('toggleVoice');
-toggleVoice.addEventListener('change', () => {
-  window.arenaVoice.setEnabled(toggleVoice.checked);
-});
+if (toggleVoice) {
+  toggleVoice.addEventListener('change', () => {
+    window.arenaVoice.setEnabled(toggleVoice.checked);
+  });
+}
 
 const toggleAutoHype = document.getElementById('toggleAutoHype');
-toggleAutoHype.addEventListener('change', () => {
-  window.arenaVoice.autoHype = toggleAutoHype.checked;
-});
+if (toggleAutoHype) {
+  toggleAutoHype.addEventListener('change', () => {
+    window.arenaVoice.autoHype = toggleAutoHype.checked;
+  });
+}
 
 const toggleGiftBoard = document.getElementById('toggleGiftBoard');
-toggleGiftBoard.addEventListener('change', () => {
-  elGiftBoard.classList.toggle('hidden', !toggleGiftBoard.checked);
-});
+if (toggleGiftBoard) {
+  toggleGiftBoard.addEventListener('change', () => {
+    elGiftBoard.classList.toggle('hidden', !toggleGiftBoard.checked);
+  });
+}
 
-document.getElementById('btnHypeNow').addEventListener('click', () => {
-  window.arenaVoice.speakHype();
-});
+const btnHypeNow = document.getElementById('btnHypeNow');
+if (btnHypeNow) {
+  btnHypeNow.addEventListener('click', () => {
+    window.arenaVoice.speakHype();
+  });
+}
 
 // Auto-live toggle & pace
 const toggleAuto = document.getElementById('toggleAuto');
-toggleAuto.addEventListener('change', () => { state.autoLive = toggleAuto.checked; });
+if (toggleAuto) {
+  toggleAuto.addEventListener('change', () => { state.autoLive = toggleAuto.checked; });
+}
 
 document.querySelectorAll('.seg-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1919,25 +1931,63 @@ document.querySelectorAll('.seg-btn').forEach(btn => {
 
 // Sound, OBS clean mode, Reset Round
 const btnSound = document.getElementById('btnSound');
-btnSound.addEventListener('click', () => {
-  const on = window.arenaAudio.toggle();
-  btnSound.classList.toggle('muted', !on);
-});
+if (btnSound) {
+  btnSound.addEventListener('click', () => {
+    const on = window.arenaAudio.toggle();
+    btnSound.classList.toggle('muted', !on);
+  });
+}
 
 const appShell = document.getElementById('appShell');
+const btnObs = document.getElementById('btnObs');
 const btnExitObs = document.getElementById('btnExitObs');
-document.getElementById('btnObs').addEventListener('click', () => {
-  appShell.classList.add('obs-mode');
-  btnExitObs.classList.remove('hidden');
-  setTimeout(handleResize, 50);
-});
-btnExitObs.addEventListener('click', () => {
-  appShell.classList.remove('obs-mode');
-  btnExitObs.classList.add('hidden');
-  setTimeout(handleResize, 50);
-});
+if (btnObs && appShell) {
+  btnObs.addEventListener('click', () => {
+    appShell.classList.add('obs-mode');
+    if (btnExitObs) btnExitObs.classList.remove('hidden');
+    setTimeout(handleResize, 50);
+  });
+}
+if (btnExitObs && appShell) {
+  btnExitObs.addEventListener('click', () => {
+    appShell.classList.remove('obs-mode');
+    btnExitObs.classList.add('hidden');
+    setTimeout(handleResize, 50);
+  });
+}
 
-document.getElementById('btnResetRound').addEventListener('click', () => startNewRound(false));
+const btnResetRound = document.getElementById('btnResetRound');
+if (btnResetRound) {
+  btnResetRound.addEventListener('click', () => startNewRound(false));
+}
+
+// URL route & query params support (/stage, ?stage=1, ?obs=1, ?auto=0, ?voice=0, ?hype=0, ?board=0, ?pace=fast|mayhem)
+const params = new URLSearchParams(window.location.search);
+const isStageUrl = /\/stage\/?$/.test(window.location.pathname) || params.get('stage') === '1' || params.get('obs') === '1';
+if (isStageUrl && appShell) {
+  appShell.classList.add('obs-mode');
+  if (btnExitObs) btnExitObs.classList.add('hidden');
+  setTimeout(handleResize, 50);
+}
+if (params.get('auto') === '0') {
+  state.autoLive = false;
+  if (toggleAuto) toggleAuto.checked = false;
+}
+if (params.get('voice') === '0') {
+  window.arenaVoice.setEnabled(false);
+  if (toggleVoice) toggleVoice.checked = false;
+}
+if (params.get('hype') === '0') {
+  window.arenaVoice.autoHype = false;
+  if (toggleAutoHype) toggleAutoHype.checked = false;
+}
+if (params.get('board') === '0' && elGiftBoard) {
+  elGiftBoard.classList.add('hidden');
+  if (toggleGiftBoard) toggleGiftBoard.checked = false;
+}
+if (['normal', 'fast', 'mayhem'].includes(params.get('pace'))) {
+  state.pace = params.get('pace');
+}
 
 // Public API for real TikTok LIVE connection (TikFinity / tiktok-live-connector)
 window.RingDropAPI = {
