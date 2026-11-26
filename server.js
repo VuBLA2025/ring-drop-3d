@@ -34,6 +34,8 @@ async function getTts(voice) {
   return tts;
 }
 
+let ttsBusy = 0; // số lần đọc thật đang chạy (để câu giữ ấm không chen vào)
+
 function synthEdge(text, voice) {
   return new Promise(async (resolve, reject) => {
     let done = false;
@@ -42,11 +44,13 @@ function synthEdge(text, voice) {
       if (done) return;
       done = true;
       clearTimeout(timer);
+      ttsBusy = Math.max(0, ttsBusy - 1);
       if (err) {
         ttsPool.delete(voice.key); // kết nối hỏng thì lần sau tạo lại
         reject(err);
       } else resolve(buf);
     }
+    ttsBusy++;
     try {
       const tts = await getTts(voice);
       const { audioStream } = await tts.toStream(text, { rate: voice.rate, pitch: voice.pitch });
@@ -94,6 +98,40 @@ async function synthCached(text, voice) {
   }
   return audio;
 }
+
+// Giữ kết nối Edge ấm: đọc một câu ngắn mỗi 50s (bỏ qua cache) để lần đọc
+// thật sau đó không phải bắt tay lại từ đầu — tiết kiệm vài giây và đỡ lỗi
+// do kết nối nguội. Bỏ qua khi đang có câu thật cần đọc.
+const WARMUP_TEXT = 'Chào mừng anh em đến với sàn đấu!';
+setInterval(async () => {
+  if (ttsBusy > 0) return;
+  try {
+    const tts = await getTts(VOICES[currentVoiceKey]);
+    const { audioStream } = await tts.toStream(WARMUP_TEXT, { rate: 1, pitch: '+0Hz' });
+    audioStream.on('data', () => {});
+    audioStream.on('error', () => {});
+    audioStream.resume();
+  } catch (e) { /* lần sau thử lại, không ảnh hưởng game */ }
+}, 50000);
+
+// Đọc trước 7 câu hype (câu cố định, nút Hô dùng đi dùng lại) để nút Hô
+// phát ngay từ đầu live, không phải chờ đọc lần đầu.
+const HYPE_LINES = [
+  'Anh em ơi, bình luận ngay để thả Bi Kiếm vào sàn chiến đấu miễn phí nào!',
+  'Thả tim liên tục để rơi Hộp Tăng Lực, giúp bi của bạn to gấp đôi và xoay siêu nhanh nhé!',
+  'Chỉ một bông Hoa Hồng là có ngay Bi Lưỡi Cưa tốc độ cao càn quét sàn đấu nha mọi người!',
+  'Sàn đấu sắp thu hẹp rồi! Tặng Donut thả Bom Xung Kích thổi bay đối thủ ra khỏi sàn đi anh em ơi!',
+  'Ai sẽ là đại gia triệu hồi Boss Titan Vàng bốn đại kiếm để làm chủ sàn đấu hôm nay đây?',
+  'Follow kênh ngay để nhận Bi Chùy Gai đẩy văng đối thủ cực mạnh nhé anh em!',
+  'Tặng Kính Râm để đánh sập ngay vòng sàn ngoài, tạo pha lật kèo cực gắt nào mọi người!'
+];
+setTimeout(async () => {
+  for (const line of HYPE_LINES) {
+    try { await synthCached(line, VOICES[currentVoiceKey]); } catch (e) {}
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  console.log('[ringdrop] da doc truoc xong 7 cau hype');
+}, 5000);
 
 // ---------- Trạng thái live ----------
 const liveState = {
