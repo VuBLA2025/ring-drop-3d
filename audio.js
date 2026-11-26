@@ -238,6 +238,12 @@ class ArenaVoice {
       this.queue = this.queue.filter(item => item.priority >= 3);
     }
 
+    // Câu cảm ơn/quà thật (ưu tiên >= 2) không phải chờ sau các câu hype tự động:
+    // bỏ hết câu hype (ưu tiên 1) đang xếp hàng để câu thật được đọc ngay.
+    if (priority >= 2) {
+      this.queue = this.queue.filter(item => item.priority >= 2);
+    }
+
     // Prevent backlog spam during mayhem mode
     if (this.queue.length >= 3) {
       if (priority <= 1) return;

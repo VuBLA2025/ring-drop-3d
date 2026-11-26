@@ -64,6 +64,37 @@ function synthEdge(text, voice) {
   });
 }
 
+// Cache mp3 theo (giọng + câu): các câu hype/cảm ơn quà lặp lại rất nhiều nên
+// lần sau phát ngay, không phải chờ Edge đọc lại và không sợ lỗi mạng xen vào.
+const ttsCache = new Map();
+const TTS_CACHE_MAX = 100;
+
+async function synthWithRetry(text, voice) {
+  try {
+    return await synthEdge(text, voice);
+  } catch (e) {
+    // Lỗi một lần (mạng/Edge chập chờn): thử lại 1 lần với kết nối mới.
+    ttsPool.delete(voice.key);
+    return await synthEdge(text, voice);
+  }
+}
+
+async function synthCached(text, voice) {
+  const key = voice.key + '|' + text;
+  const hit = ttsCache.get(key);
+  if (hit) {
+    ttsCache.delete(key); // đưa lên đầu (LRU đơn giản)
+    ttsCache.set(key, hit);
+    return hit;
+  }
+  const audio = await synthWithRetry(text, voice);
+  ttsCache.set(key, audio);
+  if (ttsCache.size > TTS_CACHE_MAX) {
+    ttsCache.delete(ttsCache.keys().next().value);
+  }
+  return audio;
+}
+
 // ---------- Trạng thái live ----------
 const liveState = {
   mode: 'idle', // idle | connecting | live
@@ -200,7 +231,7 @@ app.post('/api/tts-say', async (req, res) => {
   if (text.length > 500) return res.status(400).json({ ok: false, error: 'Câu quá dài (tối đa 500 ký tự)' });
   if (!ttsOn) return res.status(503).json({ ok: false, error: 'Giọng MC đang tắt' });
   try {
-    const audio = await synthEdge(text, VOICES[currentVoiceKey]);
+    const audio = await synthCached(text, VOICES[currentVoiceKey]);
     if (!audio || audio.length < 100) throw new Error('Edge TTS trả về audio rỗng');
     res.type('audio/mpeg').send(audio);
   } catch (e) {
