@@ -2002,6 +2002,9 @@ window.RingDropAPI = {
   }
 };
 
+// Báo cho live.js biết game đã sẵn sàng nhận sự kiện TikTok thật
+window.dispatchEvent(new Event('ringdrop:ready'));
+
 // Boot Round 1
 startNewRound(false);
 animate();

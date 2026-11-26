@@ -1,6 +1,7 @@
-FROM nginx:alpine
-
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY . /usr/share/nginx/html
-
+FROM node:20-alpine
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm install --omit=dev --no-audit --no-fund
+COPY . .
 EXPOSE 80
+CMD ["node", "server.js"]

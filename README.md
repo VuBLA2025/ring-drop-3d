@@ -6,17 +6,18 @@ Game tương tác TikTok LIVE khung dọc **9:16** dựng bằng **Three.js 3D P
 - **Đồ họa 3D PBR (Three.js):** Vật liệu gốm bóng (`clearcoat`), kim loại chrome/titan phản chiếu studio (`PMREM`), đổ bóng mềm thời gian thực.
 - **Vũ khí 3D xoay vật lý:** Bi Kiếm Katana đôi, Bi Chùy Gai, Bi Lưỡi Cưa tốc độ cao và **Boss Titan Vàng (4 Đại Kiếm)** với hit-stop, tia lửa 3D và rung camera.
 - **Sập sàn 3 tầng:** Đếm ngược thu hẹp sàn đấu, từng mảng sàn ngoài rung lắc cảnh báo đỏ rồi vỡ rơi xuống vực.
-- **MC Giọng nói Tiếng Việt (Web Speech TTS):** Tự động đọc tên người tặng quà, hô chúc mừng vô địch, kèm thẻ vinh danh + phụ đề sóng âm và lời kêu gọi tặng quà định kỳ.
+- **MC Giọng nói Tiếng Việt (Edge TTS Hoài My qua server):** Tự động đọc tên người tặng quà, hô chúc mừng vô địch, kèm thẻ vinh danh + phụ đề sóng âm và lời kêu gọi tặng quà định kỳ. Giọng chạy trên server nên nghe giống nhau trên mọi máy, giống Chùa Bình An; panel có ô chọn giọng Hoài My / Hoài My chậm / NamMinh.
 - **Bảng Quà & Chế độ OBS 9:16 sạch:** Hiển thị bảng quà trực tiếp trên sân khấu, hỗ trợ ẩn bảng điều khiển để đưa thẳng vào **OBS Studio / TikTok LIVE Studio**.
 
 ## Chạy cục bộ
-Chạy một HTTP server tĩnh bất kỳ trong thư mục dự án:
+Cần Node 20 trở lên (server làm giọng đọc + kết nối TikTok):
 
 ```bash
-python -m http.server 8766
+npm install
+node server.js   # mặc định cổng 80, đổi bằng biến PORT
 ```
 
-Sau đó mở trình duyệt tại `http://localhost:8766/` (giao diện điều khiển) hoặc `http://localhost:8766/stage` (màn hình 9:16 sạch mặc định).
+Sau đó mở trình duyệt tại `http://localhost/` (giao diện điều khiển) hoặc `http://localhost/stage` (màn hình 9:16 sạch mặc định).
 
 ## Link Stage 9:16 cho OBS / TikTok LIVE Studio
 Mở trực tiếp đường dẫn `/stage` (ví dụ `https://ringdrop.bla.io.vn/stage`) để hiển thị mặc định khung dọc **9:16** sạch, không hiện bảng điều khiển:
@@ -38,7 +39,13 @@ Mở trực tiếp đường dẫn `/stage` (ví dụ `https://ringdrop.bla.io.v
 - `H` — 📢 MC hô kêu gọi tặng quà ngay
 
 ## Kết nối TikTok LIVE thật
-Game cung cấp sẵn API toàn cục `window.RingDropAPI` để tích hợp với **TikFinity** hoặc **`tiktok-live-connector`**:
+Server đã tích hợp sẵn `tiktok-live-connector`: mở panel, nhập @username TikTok đang live rồi bấm **Kết nối LIVE** là xong, không cần TikFinity.
+
+- Comment → Bi Kiếm • Follow → Bi Chùy Gai • Thả tim → Hộp Buff
+- Hoa Hồng → Bi Lưỡi Cưa • Donut → Bom Xung Kích • Kính Râm → Sập Vòng Sàn
+- Sư Tử / Thiên Hà (từ 1000 xu) → Boss Titan Vàng
+
+Muốn tự tích hợp cầu nối khác thì game vẫn có sẵn API toàn cục `window.RingDropAPI`:
 
 ```js
 window.RingDropAPI.onComment('Minh Anh');
@@ -46,3 +53,8 @@ window.RingDropAPI.onFollow('Khang Vũ');
 window.RingDropAPI.onLike();
 window.RingDropAPI.onGift('Khánh Linh', 'rose' | 'bomb' | 'collapse' | 'titan');
 ```
+
+## Giọng MC (Edge TTS)
+- `GET /api/tts-voices` — danh sách giọng, `POST /api/tts-voice {voice}` — đổi giọng
+  (`hoaimy` mặc định, `hoaimy-slow`, `namminh`), `POST /api/tts-say {text}` — đọc 1 câu.
+- Giọng chạy trên server qua kênh đọc to của Microsoft Edge, không cần key.

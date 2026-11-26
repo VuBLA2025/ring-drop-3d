@@ -1,4 +1,4 @@
-// Crisp Tactile Metallic SFX + Vietnamese MC Voice Announcer (Web Speech TTS)
+// Crisp Tactile Metallic SFX + Vietnamese MC Voice Announcer (Edge TTS HoaiMy via server)
 class ArenaAudio {
   constructor() {
     this.ctx = null;
@@ -175,19 +175,20 @@ class ArenaAudio {
 }
 
 // ============================================================================
-// VIETNAMESE MC VOICE ANNOUNCER (Web Speech API + Priority Queue + Hype Lines)
+// VIETNAMESE MC VOICE ANNOUNCER (Edge TTS HoaiMy via server + Priority Queue + Hype Lines)
 // ============================================================================
 class ArenaVoice {
   constructor() {
     this.enabled = true;
     this.autoHype = true;
-    this.rate = 1.12;
     this.queue = [];
     this.speaking = false;
-    this.viVoice = null;
     this.onSubtitle = null;
     this.lastHypeIndex = -1;
-    this.supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+    // Giọng MC chạy trên server (Edge TTS Hoài My), không dùng giọng trình duyệt nữa.
+    this.audio = typeof Audio !== 'undefined' ? new Audio() : null;
+    if (this.audio) this.audio.preload = 'auto';
+    this.currentUrl = null;
 
     this.hypeLines = [
       'Anh em ơi, bình luận ngay để thả Bi Kiếm vào sàn chiến đấu miễn phí nào!',
@@ -199,27 +200,25 @@ class ArenaVoice {
       'Tặng Kính Râm để đánh sập ngay vòng sàn ngoài, tạo pha lật kèo cực gắt nào mọi người!'
     ];
 
-    if (this.supported) {
-      this.loadVoices();
-      window.speechSynthesis.onvoiceschanged = () => this.loadVoices();
-    }
   }
 
-  loadVoices() {
-    if (!this.supported) return;
-    const voices = window.speechSynthesis.getVoices();
-    // Prefer Vietnamese voice (Microsoft HoaiMy / NamMinh / Google Tiếng Việt)
-    this.viVoice =
-      voices.find(v => v.lang.toLowerCase().startsWith('vi') && /hoaimy|google|natural/i.test(v.name)) ||
-      voices.find(v => v.lang.toLowerCase().startsWith('vi')) ||
-      null;
+  stopAudio() {
+    if (this.audio) {
+      try { this.audio.pause(); } catch (e) {}
+      this.audio.removeAttribute('src');
+      try { this.audio.load(); } catch (e) {}
+    }
+    if (this.currentUrl) {
+      try { URL.revokeObjectURL(this.currentUrl); } catch (e) {}
+      this.currentUrl = null;
+    }
   }
 
   setEnabled(val) {
     this.enabled = val;
-    if (!val && this.supported) {
+    if (!val) {
       this.queue = [];
-      window.speechSynthesis.cancel();
+      this.stopAudio();
       this.speaking = false;
       if (this.onSubtitle) this.onSubtitle('');
     }
@@ -229,21 +228,12 @@ class ArenaVoice {
   speak(text, priority = 2) {
     if (!text) return;
 
-    // Always display subtitle briefly even if speech synthesis is unavailable
+    // Giọng chạy trên server nên không cần kiểm tra giọng trình duyệt nữa.
     if (!this.enabled) return;
-
-    if (!this.supported) {
-      if (this.onSubtitle) {
-        this.onSubtitle(text);
-        clearTimeout(this._subTimer);
-        this._subTimer = setTimeout(() => this.onSubtitle(''), 3200);
-      }
-      return;
-    }
 
     // High-priority Boss / Big Gift interrupts low-priority hype speech immediately
     if (priority >= 4 && this.speaking) {
-      window.speechSynthesis.cancel();
+      this.stopAudio();
       this.speaking = false;
       this.queue = this.queue.filter(item => item.priority >= 3);
     }
@@ -267,33 +257,48 @@ class ArenaVoice {
     this.speaking = true;
     if (this.onSubtitle) this.onSubtitle(item.text);
 
-    try {
-      const utter = new SpeechSynthesisUtterance(item.text);
-      utter.lang = 'vi-VN';
-      if (this.viVoice) utter.voice = this.viVoice;
-      utter.rate = this.rate;
-      utter.pitch = item.priority >= 4 ? 1.12 : 1.05;
-      utter.volume = 1.0;
-
-      const finish = () => {
-        clearTimeout(safetyTimer);
-        this.speaking = false;
-        if (this.queue.length === 0 && this.onSubtitle) {
-          this.onSubtitle('');
-        }
-        setTimeout(() => this._processNext(), 160);
-      };
-
-      // Chrome safety guard in case onend doesn't fire
-      const safetyTimer = setTimeout(finish, Math.max(4500, item.text.length * 105));
-      utter.onend = finish;
-      utter.onerror = finish;
-
-      window.speechSynthesis.speak(utter);
-    } catch {
+    // Lấy giọng Hoài My từ server (Edge TTS) rồi phát bằng <audio>.
+    const finish = () => {
+      clearTimeout(safetyTimer);
       this.speaking = false;
-      if (this.onSubtitle) this.onSubtitle('');
+      if (this.queue.length === 0 && this.onSubtitle) {
+        this.onSubtitle('');
+      }
+      setTimeout(() => this._processNext(), 160);
+    };
+
+    // Safety guard in case onended doesn't fire
+    const safetyTimer = setTimeout(finish, Math.max(8000, item.text.length * 220));
+
+    if (!this.audio) {
+      finish();
+      return;
     }
+
+    fetch('/api/tts-say', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: item.text }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error('TTS ' + r.status);
+        return r.blob();
+      })
+      .then((blob) => {
+        if (this.currentUrl) {
+          try { URL.revokeObjectURL(this.currentUrl); } catch (e) {}
+        }
+        this.currentUrl = URL.createObjectURL(blob);
+        this.audio.onended = finish;
+        this.audio.onerror = finish;
+        this.audio.src = this.currentUrl;
+        const p = this.audio.play();
+        if (p && p.catch) p.catch(() => finish());
+      })
+      .catch(() => {
+        // Server TTS lỗi: chỉ hiện phụ đề, không câm cả sân.
+        finish();
+      });
   }
 
   announceGift(userName, giftType) {

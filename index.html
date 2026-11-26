@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=20261126b" />
+  <link rel="stylesheet" href="style.css?v=20261126c" />
   <script type="importmap">
     {
       "imports": {
@@ -196,7 +196,32 @@
             <span class="track"></span>
           </label>
         </div>
+        <div class="card-row compact">
+          <span class="sub-label">Giọng MC (Edge TTS)</span>
+          <select id="ttsVoice" class="voice-select">
+            <option value="hoaimy">Nữ HoaiMy</option>
+            <option value="hoaimy-slow">Nữ HoaiMy chậm rãi</option>
+            <option value="namminh">Nam NamMinh</option>
+          </select>
+        </div>
         <button class="hype-now-btn" id="btnHypeNow">📢 Hô kêu gọi tặng quà ngay (Phím H)</button>
+      </div>
+
+      <!-- TikTok LIVE thật -->
+      <div class="card">
+        <div class="card-row">
+          <span class="card-title">📱 Kết nối TikTok LIVE thật</span>
+        </div>
+        <div class="field-row">
+          <input id="tiktokUsername" type="text" placeholder="@username TikTok đang live" autocomplete="off" />
+        </div>
+        <div class="field-row">
+          <button class="hype-now-btn" id="btnTiktokConnect">Kết nối LIVE</button>
+          <button class="mini-reset" id="btnTiktokDisconnect" style="display:none;">Ngắt kết nối</button>
+        </div>
+        <div class="card-row compact">
+          <span class="sub-label" id="tiktokStatus">Chưa kết nối — đang chạy giả lập.</span>
+        </div>
       </div>
 
       <!-- Auto Live Simulation -->
@@ -276,14 +301,16 @@
       </div>
 
       <p class="foot-note">
-        Mẹo: Mở thẳng <a href="./stage/" style="color:#f5b942;text-decoration:none;font-weight:700;">/stage</a> để lấy link 9:16 sạch cho OBS / TikTok LIVE Studio. Click vào bất kỳ nút nào 1 lần để trình duyệt mở khóa giọng nói tiếng Việt.
+        Mẹo: Mở thẳng <a href="./stage/" style="color:#f5b942;text-decoration:none;font-weight:700;">/stage</a> để lấy link 9:16 sạch cho OBS / TikTok LIVE Studio. Giọng MC Hoài My chạy trên server nên nghe giống nhau trên mọi máy. Nhập @username TikTok ở trên rồi bấm Kết nối để nhận comment / follow / tim / quà thật.
       </p>
     </aside>
 
     <button class="exit-obs hidden" id="btnExitObs">← Hiện bảng điều khiển</button>
   </div>
 
-  <script src="audio.js?v=20261126b"></script>
-  <script type="module" src="game.js?v=20261126b"></script>
+  <script src="audio.js?v=20261126c"></script>
+  <script type="module" src="game.js?v=20261126c"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="live.js?v=20261126c"></script>
 </body>
 </html>
