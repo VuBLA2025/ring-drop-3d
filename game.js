@@ -1,4 +1,8 @@
-import * as THREE from './lib/three.module.min.js';
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 /* ==========================================================================
    RING DROP 3D — High-Craft Three.js PBR Weapon Ball Battle Arena
@@ -9,7 +13,7 @@ const overlayLayer = document.getElementById('overlayLayer');
 
 // Renderer with real tone mapping & soft shadows
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -17,13 +21,31 @@ renderer.toneMappingExposure = 1.18;
 mount.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#10141d');
-scene.fog = new THREE.Fog('#10141d', 28, 62);
+
+// Cinematic vertical gradient backdrop (deep navy top -> near-black bottom with warm horizon haze)
+function createBackdropTexture() {
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 512;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0, 0, 0, 512);
+  grad.addColorStop(0, '#141b2c');
+  grad.addColorStop(0.38, '#0e1320');
+  grad.addColorStop(0.72, '#0a0d16');
+  grad.addColorStop(1, '#06070c');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 4, 512);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+scene.background = createBackdropTexture();
+scene.fog = new THREE.Fog('#0b0f19', 30, 66);
 
 // Elevated Sports Broadcast 3D Camera (balanced nicely above the bottom Gift Board)
 const camera = new THREE.PerspectiveCamera(38, 9 / 16, 0.5, 140);
 const baseCamPos = new THREE.Vector3(0, 32.0, 25.5);
 const camTarget = new THREE.Vector3(0, -1.8, 1.2);
+const camBase = baseCamPos.clone();
 camera.position.copy(baseCamPos);
 camera.lookAt(camTarget);
 
@@ -88,12 +110,26 @@ underGlowLight.position.set(0, -4.5, 0);
 scene.add(underGlowLight);
 
 // Resize handler
+// Post-processing: HDR MSAA render target -> Unreal Bloom glow -> ACES tone-mapped output
+const composerTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+const composer = new EffectComposer(renderer, composerTarget);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.62, 0.5, 0.86);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
+
+// Shared uniform for world-sized soft glow particles (depends on viewport height)
+const glowUniforms = { uScale: { value: 800 } };
+
 function handleResize() {
   const rect = mount.getBoundingClientRect();
   if (rect.width === 0 || rect.height === 0) return;
   camera.aspect = rect.width / rect.height;
   camera.updateProjectionMatrix();
   renderer.setSize(rect.width, rect.height, false);
+  composer.setSize(rect.width, rect.height);
+  glowUniforms.uScale.value =
+    (rect.height * renderer.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
 }
 new ResizeObserver(handleResize).observe(mount);
 handleResize();
@@ -169,10 +205,12 @@ function buildArena() {
 
   // Ring 0: Solid central cylindrical slab + metallic bevel rim
   const coreGeo = new THREE.CylinderGeometry(RING_SPECS[0].outerR, RING_SPECS[0].outerR * 0.96, 0.9, 48);
-  const coreMatTop = new THREE.MeshStandardMaterial({
+  const coreMatTop = new THREE.MeshPhysicalMaterial({
     map: coreTopTex,
-    metalness: 0.48,
-    roughness: 0.34
+    metalness: 0.5,
+    roughness: 0.28,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.22
   });
   const coreMatSide = new THREE.MeshStandardMaterial({ color: '#141925', metalness: 0.72, roughness: 0.28 });
   const coreMesh = new THREE.Mesh(coreGeo, [coreMatSide, coreMatTop, coreMatSide]);
@@ -248,7 +286,7 @@ function buildArena() {
           new THREE.MeshStandardMaterial({
             color: '#ff5b37',
             emissive: '#ff4d2e',
-            emissiveIntensity: 0.45,
+            emissiveIntensity: 1.35,
             roughness: 0.3,
             metalness: 0.5
           })
@@ -344,6 +382,49 @@ function createSphereTexture(baseHex, bandHex, initials, isTitan = false) {
   return tex;
 }
 
+// Conic streak texture for silky "spin blur" discs under every spinning weapon
+const spinBlurTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  if (typeof g.createConicGradient === 'function') {
+    const grad = g.createConicGradient(0, 128, 128);
+    grad.addColorStop(0.0, 'rgba(255,255,255,0)');
+    grad.addColorStop(0.2, 'rgba(255,255,255,0.9)');
+    grad.addColorStop(0.36, 'rgba(255,255,255,0)');
+    grad.addColorStop(0.5, 'rgba(255,255,255,0)');
+    grad.addColorStop(0.7, 'rgba(255,255,255,0.9)');
+    grad.addColorStop(0.86, 'rgba(255,255,255,0)');
+    grad.addColorStop(1.0, 'rgba(255,255,255,0)');
+    g.fillStyle = grad;
+  } else {
+    g.fillStyle = 'rgba(255,255,255,0.35)';
+  }
+  g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+})();
+
+const spinBlurMats = {};
+function getSpinBlurMaterial(type) {
+  if (!spinBlurMats[type]) {
+    const col = type === 'TITAN'
+      ? new THREE.Color(1.7, 1.2, 0.45)
+      : type === 'SAW'
+        ? new THREE.Color(1.05, 1.15, 1.35)
+        : new THREE.Color(0.9, 0.97, 1.15);
+    spinBlurMats[type] = new THREE.MeshBasicMaterial({
+      map: spinBlurTex,
+      color: col,
+      transparent: true,
+      opacity: type === 'SAW' ? 0.4 : type === 'TITAN' ? 0.34 : 0.26,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+  }
+  return spinBlurMats[type];
+}
+
 function buildWeaponRig(weaponType, radius) {
   const rig = new THREE.Group();
 
@@ -422,7 +503,17 @@ function buildWeaponRig(weaponType, radius) {
     }
   }
 
-  return { rig, weaponReach };
+  // Motion-blur spin disc: reads as a smooth spinning blade even at low FPS
+  const blurDisc = new THREE.Mesh(
+    new THREE.RingGeometry(radius + 0.16, weaponReach + 0.05, 64, 1),
+    getSpinBlurMaterial(weaponType)
+  );
+  blurDisc.rotation.x = -Math.PI / 2;
+  blurDisc.position.y = 0.03;
+  blurDisc.renderOrder = 2;
+  rig.add(blurDisc);
+
+  return { rig, weaponReach, blurDisc };
 }
 
 // ==========================================================================
@@ -545,38 +636,368 @@ function spawnHitPop(worldPos, text, cls = '') {
 }
 
 // ==========================================================================
-// 3D FX: SPARKS & SHOCKWAVES
+// 3D FX: POOLED HDR STREAK SPARKS, SOFT GLOW PARTICLES, SHOCKWAVES, AMBIENCE
+// (zero allocations per frame -> no GC stutter, bloom-friendly HDR colors)
 // ==========================================================================
-const sparkGeo = new THREE.BoxGeometry(0.08, 0.08, 0.34);
+const _m4 = new THREE.Matrix4();
+const _q4 = new THREE.Quaternion();
+const _s3 = new THREE.Vector3();
+const _p3 = new THREE.Vector3();
+const _d3 = new THREE.Vector3();
+const _zAxis = new THREE.Vector3(0, 0, 1);
+const _c3 = new THREE.Color();
+const ZERO_MATRIX = new THREE.Matrix4().makeScale(0, 0, 0);
+
+// --- Streak sparks: one InstancedMesh draw call ---
+const MAX_SPARKS = 520;
+const sparkGeo = new THREE.BoxGeometry(0.045, 0.045, 1);
+const sparkMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false });
+const sparkMesh = new THREE.InstancedMesh(sparkGeo, sparkMat, MAX_SPARKS);
+sparkMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+sparkMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_SPARKS * 3), 3);
+sparkMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+sparkMesh.frustumCulled = false;
+for (let i = 0; i < MAX_SPARKS; i++) sparkMesh.setMatrixAt(i, ZERO_MATRIX);
+scene.add(sparkMesh);
+
+const sparkPool = Array.from({ length: MAX_SPARKS }, () => ({
+  alive: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, maxLife: 1, r: 1, g: 1, b: 1
+}));
+let sparkCursor = 0;
 
 function emitSparks(pos, count = 14, colorHex = '#ffaa33', speedMult = 1) {
+  _c3.set(colorHex);
   for (let i = 0; i < count; i++) {
-    const mat = new THREE.MeshBasicMaterial({ color: i % 3 === 0 ? '#ffffff' : colorHex });
-    const mesh = new THREE.Mesh(sparkGeo, mat);
-    mesh.position.copy(pos);
+    const s = sparkPool[sparkCursor];
+    sparkCursor = (sparkCursor + 1) % MAX_SPARKS;
     const angle = Math.random() * Math.PI * 2;
-    const spd = (4 + Math.random() * 9) * speedMult;
-    const vx = Math.cos(angle) * spd;
-    const vy = 3.5 + Math.random() * 6.5;
-    const vz = Math.sin(angle) * spd;
-    scene.add(mesh);
-    sparks.push({ mesh, mat, vx, vy, vz, life: 0.35 + Math.random() * 0.25, maxLife: 0.6 });
+    const spd = (4 + Math.random() * 10) * speedMult;
+    s.alive = true;
+    s.x = pos.x; s.y = pos.y; s.z = pos.z;
+    s.vx = Math.cos(angle) * spd;
+    s.vy = 2.5 + Math.random() * 7;
+    s.vz = Math.sin(angle) * spd;
+    s.life = s.maxLife = 0.32 + Math.random() * 0.4;
+    const hot = i % 3 === 0;
+    const boost = hot ? 6 : 3.2;
+    s.r = (hot ? 1.0 : _c3.r) * boost;
+    s.g = (hot ? 0.92 : _c3.g) * boost;
+    s.b = (hot ? 0.75 : _c3.b) * boost;
   }
 }
 
-function emitShockwave(x, z, maxR = 4.2, colorHex = '#ffffff') {
-  const geo = new THREE.RingGeometry(0.25, 0.48, 40);
-  geo.rotateX(-Math.PI / 2);
-  const mat = new THREE.MeshBasicMaterial({
-    color: colorHex,
+function updateSparks(dt, arenaR) {
+  const drag = Math.pow(0.35, dt);
+  for (let i = 0; i < MAX_SPARKS; i++) {
+    const s = sparkPool[i];
+    if (!s.alive) continue;
+    s.life -= dt;
+    if (s.life <= 0) {
+      s.alive = false;
+      sparkMesh.setMatrixAt(i, ZERO_MATRIX);
+      continue;
+    }
+    s.vy -= 24 * dt;
+    s.vx *= drag;
+    s.vz *= drag;
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.z += s.vz * dt;
+    if (s.y < 0.04 && Math.hypot(s.x, s.z) < arenaR) {
+      s.y = 0.04;
+      s.vy *= -0.38;
+      s.vx *= 0.7;
+      s.vz *= 0.7;
+    }
+    const t = s.life / s.maxLife;
+    const speed = Math.hypot(s.vx, s.vy, s.vz);
+    _d3.set(s.vx, s.vy, s.vz).normalize();
+    _q4.setFromUnitVectors(_zAxis, _d3);
+    const len = Math.min(0.8, 0.06 + speed * 0.036) * (0.45 + 0.55 * t);
+    const thick = 0.5 + 0.8 * t;
+    _s3.set(thick, thick, len);
+    _p3.set(s.x, s.y, s.z);
+    _m4.compose(_p3, _q4, _s3);
+    sparkMesh.setMatrixAt(i, _m4);
+    sparkMesh.instanceColor.setXYZ(i, s.r * t, s.g * t, s.b * t);
+  }
+  sparkMesh.instanceMatrix.needsUpdate = true;
+  sparkMesh.instanceColor.needsUpdate = true;
+}
+
+// --- Soft glow points (flashes, embers, dust): custom additive shader ---
+function createGlowMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: glowUniforms,
+    vertexShader: /* glsl */`
+      attribute vec3 aColor;
+      attribute float aSize;
+      uniform float uScale;
+      varying vec3 vColor;
+      void main() {
+        vColor = aColor;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = aSize * uScale / max(0.001, -mv.z);
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      varying vec3 vColor;
+      void main() {
+        float d = length(gl_PointCoord - 0.5) * 2.0;
+        if (d > 1.0) discard;
+        float halo = pow(1.0 - d, 2.2);
+        float core = pow(max(0.0, 1.0 - d * 2.4), 2.0);
+        gl_FragColor = vec4(vColor * (halo + core * 1.3), 1.0);
+      }
+    `,
     transparent: true,
-    opacity: 0.85,
-    side: THREE.DoubleSide
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
   });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(x, 0.06, z);
+}
+
+const MAX_GLOW = 700;
+const glowPos = new Float32Array(MAX_GLOW * 3);
+const glowCol = new Float32Array(MAX_GLOW * 3);
+const glowSize = new Float32Array(MAX_GLOW);
+const glowGeo = new THREE.BufferGeometry();
+glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3).setUsage(THREE.DynamicDrawUsage));
+glowGeo.setAttribute('aColor', new THREE.BufferAttribute(glowCol, 3).setUsage(THREE.DynamicDrawUsage));
+glowGeo.setAttribute('aSize', new THREE.BufferAttribute(glowSize, 1).setUsage(THREE.DynamicDrawUsage));
+const glowPoints = new THREE.Points(glowGeo, createGlowMaterial());
+glowPoints.frustumCulled = false;
+glowPoints.renderOrder = 5;
+scene.add(glowPoints);
+
+const glowPool = Array.from({ length: MAX_GLOW }, () => ({
+  alive: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, maxLife: 1,
+  size: 1, grow: 0, r: 1, g: 1, b: 1, buoy: 0, fadePow: 1.5
+}));
+let glowCursor = 0;
+
+function emitGlow(x, y, z, colorHex, size, life, vx = 0, vy = 0, vz = 0, grow = 0, intensity = 2.5, buoy = 0, fadePow = 1.5) {
+  const p = glowPool[glowCursor];
+  glowCursor = (glowCursor + 1) % MAX_GLOW;
+  _c3.set(colorHex);
+  p.alive = true;
+  p.x = x; p.y = y; p.z = z;
+  p.vx = vx; p.vy = vy; p.vz = vz;
+  p.life = p.maxLife = life;
+  p.size = size;
+  p.grow = grow;
+  p.r = _c3.r * intensity;
+  p.g = _c3.g * intensity;
+  p.b = _c3.b * intensity;
+  p.buoy = buoy;
+  p.fadePow = fadePow;
+}
+
+// Bright impact flash that blooms outward then fades fast
+function emitFlash(pos, colorHex, size = 3, life = 0.22) {
+  emitGlow(pos.x, pos.y, pos.z, colorHex, size * 0.5, life, 0, 0, 0, size * 0.9, 3.0, 0, 2.2);
+}
+
+// Slow drifting embers that float upward
+function emitEmbers(pos, colorHex, count = 10, spread = 1.2) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.random() * spread;
+    emitGlow(
+      pos.x + Math.cos(a) * r * 0.4, pos.y + Math.random() * 0.3, pos.z + Math.sin(a) * r * 0.4,
+      colorHex,
+      0.18 + Math.random() * 0.22,
+      0.7 + Math.random() * 0.8,
+      Math.cos(a) * r * 2.2, 1.5 + Math.random() * 2.5, Math.sin(a) * r * 2.2,
+      0, 2.4, 1.6, 1.2
+    );
+  }
+}
+
+function updateGlow(dt) {
+  const drag = Math.pow(0.45, dt);
+  for (let i = 0; i < MAX_GLOW; i++) {
+    const p = glowPool[i];
+    if (!p.alive) continue;
+    p.life -= dt;
+    const i3 = i * 3;
+    if (p.life <= 0) {
+      p.alive = false;
+      glowSize[i] = 0;
+      glowCol[i3] = glowCol[i3 + 1] = glowCol[i3 + 2] = 0;
+      continue;
+    }
+    p.vx *= drag;
+    p.vz *= drag;
+    p.vy = p.vy * drag + p.buoy * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.z += p.vz * dt;
+    const t = p.life / p.maxLife;
+    const fade = Math.pow(t, p.fadePow);
+    glowPos[i3] = p.x;
+    glowPos[i3 + 1] = p.y;
+    glowPos[i3 + 2] = p.z;
+    glowCol[i3] = p.r * fade;
+    glowCol[i3 + 1] = p.g * fade;
+    glowCol[i3 + 2] = p.b * fade;
+    glowSize[i] = p.size + p.grow * (1 - t * t);
+  }
+  glowGeo.attributes.position.needsUpdate = true;
+  glowGeo.attributes.aColor.needsUpdate = true;
+  glowGeo.attributes.aSize.needsUpdate = true;
+}
+
+// --- Soft textured shockwave rings (ease-out expansion) ---
+const shockRingTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0.0, 'rgba(255,255,255,0)');
+  grad.addColorStop(0.55, 'rgba(255,255,255,0)');
+  grad.addColorStop(0.8, 'rgba(255,255,255,0.35)');
+  grad.addColorStop(0.92, 'rgba(255,255,255,1)');
+  grad.addColorStop(1.0, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+})();
+const shockGeo = new THREE.PlaneGeometry(2, 2);
+shockGeo.rotateX(-Math.PI / 2);
+
+function emitShockwave(x, z, maxR = 4.2, colorHex = '#ffffff') {
+  const mat = new THREE.MeshBasicMaterial({
+    map: shockRingTex,
+    color: new THREE.Color(colorHex).multiplyScalar(2.2),
+    transparent: true,
+    opacity: 1,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false
+  });
+  const mesh = new THREE.Mesh(shockGeo, mat);
+  mesh.position.set(x, 0.07, z);
+  mesh.scale.setScalar(0.3);
+  mesh.renderOrder = 3;
   scene.add(mesh);
-  shockwaves.push({ mesh, geo, mat, scale: 1, maxScale: maxR * 2.1, life: 0.42, maxLife: 0.42 });
+  shockwaves.push({ mesh, mat, maxR, life: 0.55, maxLife: 0.55 });
+}
+
+function updateShockwaves(dt) {
+  for (let i = shockwaves.length - 1; i >= 0; i--) {
+    const sw = shockwaves[i];
+    sw.life -= dt;
+    const t = 1 - Math.max(0, sw.life) / sw.maxLife;
+    const ease = 1 - Math.pow(1 - t, 3);
+    sw.mesh.scale.setScalar(0.3 + ease * sw.maxR);
+    sw.mat.opacity = Math.pow(1 - t, 1.6);
+    if (sw.life <= 0) {
+      scene.remove(sw.mesh);
+      sw.mat.dispose();
+      shockwaves.splice(i, 1);
+    }
+  }
+}
+
+// --- Glowing arena edge line that smoothly follows the shrinking ring ---
+const edgeGlowMat = new THREE.MeshBasicMaterial({
+  color: new THREE.Color(2.2, 0.7, 0.28),
+  transparent: true,
+  opacity: 0.7,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  side: THREE.DoubleSide,
+  fog: false
+});
+const edgeGlow = new THREE.Mesh(new THREE.RingGeometry(0.986, 1.0, 180), edgeGlowMat);
+edgeGlow.rotation.x = -Math.PI / 2;
+edgeGlow.position.y = 0.04;
+edgeGlow.renderOrder = 2;
+scene.add(edgeGlow);
+let edgeR = RING_SPECS[2].outerR;
+
+function updateEdgeGlow(dt, t) {
+  const targetR = getActiveArenaRadius() - 0.05;
+  edgeR += (targetR - edgeR) * Math.min(1, dt * 3);
+  edgeGlow.scale.setScalar(edgeR);
+  if (state.ringWarningActive) {
+    const p = 0.5 + 0.5 * Math.sin(t * 18);
+    edgeGlowMat.color.setRGB(3.6, 0.45 + p * 0.4, 0.22);
+    edgeGlowMat.opacity = 0.55 + p * 0.45;
+  } else {
+    edgeGlowMat.color.setRGB(2.2, 0.7, 0.28);
+    edgeGlowMat.opacity = 0.55 + 0.15 * Math.sin(t * 2.2);
+  }
+}
+
+// --- Abyss under-glow + floating dust motes for depth ---
+const abyssTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0.0, 'rgba(255,120,70,0.55)');
+  grad.addColorStop(0.3, 'rgba(255,80,45,0.2)');
+  grad.addColorStop(0.65, 'rgba(50,100,220,0.08)');
+  grad.addColorStop(1.0, 'rgba(0,0,0,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+})();
+const abyssGlow = new THREE.Mesh(
+  new THREE.PlaneGeometry(44, 44),
+  new THREE.MeshBasicMaterial({
+    map: abyssTex, transparent: true, opacity: 0.6, depthWrite: false,
+    blending: THREE.AdditiveBlending, fog: false
+  })
+);
+abyssGlow.rotation.x = -Math.PI / 2;
+abyssGlow.position.y = -7.5;
+scene.add(abyssGlow);
+
+const DUST_COUNT = 170;
+const dustPos = new Float32Array(DUST_COUNT * 3);
+const dustCol = new Float32Array(DUST_COUNT * 3);
+const dustSize = new Float32Array(DUST_COUNT);
+const dustData = [];
+for (let i = 0; i < DUST_COUNT; i++) {
+  const a = Math.random() * Math.PI * 2;
+  const r = 3 + Math.random() * 15;
+  const warm = Math.random() < 0.35;
+  const k = 0.25 + Math.random() * 0.35;
+  dustCol[i * 3] = (warm ? 1.0 : 0.55) * k;
+  dustCol[i * 3 + 1] = (warm ? 0.55 : 0.7) * k;
+  dustCol[i * 3 + 2] = (warm ? 0.35 : 1.0) * k;
+  dustSize[i] = 0.08 + Math.random() * 0.2;
+  dustData.push({
+    x: Math.cos(a) * r, z: Math.sin(a) * r,
+    y: -7 + Math.random() * 20,
+    vy: 0.25 + Math.random() * 0.6,
+    fx: 0.15 + Math.random() * 0.35,
+    ph: Math.random() * Math.PI * 2
+  });
+}
+const dustGeo = new THREE.BufferGeometry();
+dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3).setUsage(THREE.DynamicDrawUsage));
+dustGeo.setAttribute('aColor', new THREE.BufferAttribute(dustCol, 3));
+dustGeo.setAttribute('aSize', new THREE.BufferAttribute(dustSize, 1));
+const dustPoints = new THREE.Points(dustGeo, createGlowMaterial());
+dustPoints.frustumCulled = false;
+scene.add(dustPoints);
+
+function updateAmbient(dt, t) {
+  for (let i = 0; i < DUST_COUNT; i++) {
+    const d = dustData[i];
+    d.y += d.vy * dt;
+    if (d.y > 13) d.y = -7;
+    dustPos[i * 3] = d.x + Math.sin(t * d.fx + d.ph) * 0.6;
+    dustPos[i * 3 + 1] = d.y;
+    dustPos[i * 3 + 2] = d.z + Math.cos(t * d.fx * 0.8 + d.ph) * 0.6;
+  }
+  dustGeo.attributes.position.needsUpdate = true;
+  abyssGlow.material.opacity = 0.55 + 0.1 * Math.sin(t * 0.9);
+  abyssGlow.rotation.z += dt * 0.03;
 }
 
 // ==========================================================================
@@ -605,7 +1026,9 @@ function spawnFighter(weaponType = 'BLADE', customName = null, dropX = null, dro
     metalness: isTitan ? 0.78 : 0.35,
     roughness: isTitan ? 0.2 : 0.22,
     clearcoat: 0.95,
-    clearcoatRoughness: 0.1
+    clearcoatRoughness: 0.1,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveIntensity: 0
   });
   const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 36, 28), ballMat);
   ballMesh.castShadow = true;
@@ -659,6 +1082,7 @@ function spawnFighter(weaponType = 'BLADE', customName = null, dropX = null, dro
     lastHitBy: null,
     lastHitTime: 0,
     hitFlash: 0,
+    landT: 0,
     scale: 1
   };
 
@@ -1003,8 +1427,11 @@ function updatePhysics(dt) {
         f.y = f.radius;
         f.vy = 0;
         f.grounded = true;
+        f.landT = 0.38;
         const heavy = f.weaponType === 'TITAN';
         window.arenaAudio.playSlam(heavy);
+        emitFlash(new THREE.Vector3(f.x, 0.25, f.z), f.colorHex, heavy ? 6.5 : 2.6, heavy ? 0.35 : 0.2);
+        emitEmbers(new THREE.Vector3(f.x, 0.2, f.z), f.colorHex, heavy ? 26 : 8, heavy ? 2.8 : 1.1);
         state.shake = Math.max(state.shake, heavy ? 0.55 : 0.16);
         emitShockwave(f.x, f.z, heavy ? 5.2 : 2.1, f.colorHex);
         emitSparks(new THREE.Vector3(f.x, 0.2, f.z), heavy ? 22 : 8, f.colorHex);
@@ -1034,6 +1461,9 @@ function updatePhysics(dt) {
       f.z += f.vz * dt;
       f.root.rotation.x += dt * 4.5;
       f.root.rotation.z += dt * 3.5;
+      if (Math.random() < 0.55) {
+        emitGlow(f.x, f.y, f.z, f.colorHex, 0.3 + Math.random() * 0.25, 0.55, 0, 1.4, 0, 0, 2.2, 0, 1.3);
+      }
 
       if (f.y < -22) {
         scene.remove(f.root);
@@ -1136,8 +1566,23 @@ function updatePhysics(dt) {
       }
     }
 
-    // Apply transform
-    f.root.position.set(f.x, f.y, f.z);
+    // Smooth squash & stretch on landing + white hit flash, then apply transform
+    let squash = 0;
+    if (f.landT > 0) {
+      f.landT = Math.max(0, f.landT - dt);
+      const k = f.landT / 0.38;
+      squash = Math.sin(k * Math.PI) * k;
+    }
+    f.root.scale.set(
+      f.scale * (1 + 0.16 * squash),
+      f.scale * (1 - 0.24 * squash),
+      f.scale * (1 + 0.16 * squash)
+    );
+    if (f.hitFlash > 0) {
+      f.hitFlash = Math.max(0, f.hitFlash - dt * 5.5);
+      f.ballMesh.material.emissiveIntensity = f.hitFlash * 1.25;
+    }
+    f.root.position.set(f.x, f.y - f.radius * 0.24 * squash, f.z);
   }
 
   // Fighter-to-Fighter Body & Spinning Weapon Collisions!
@@ -1193,6 +1638,7 @@ function updatePhysics(dt) {
             b.spinDir *= -1;
           }
 
+          a.hitFlash = 1; b.hitFlash = 1;
           a.lastHitBy = b; a.lastHitTime = elapsed;
           b.lastHitBy = a; b.lastHitTime = elapsed;
 
@@ -1200,6 +1646,7 @@ function updatePhysics(dt) {
           const mid = new THREE.Vector3((a.x + b.x) * 0.5, 0.8, (a.z + b.z) * 0.5);
           const impact = Math.min(2, (pushToA + pushToB) / 14);
           emitSparks(mid, Math.round(9 + impact * 10), '#ffb347', 0.8 + impact * 0.45);
+          emitFlash(mid, '#ffd29a', 1.2 + impact * 1.3, 0.14);
           window.arenaAudio.playClash(impact);
           state.shake = Math.max(state.shake, 0.14 + impact * 0.14);
           if (impact > 1.05) state.hitStop = 0.022;
@@ -1231,6 +1678,8 @@ function updatePhysics(dt) {
         f.root.scale.setScalar(f.scale);
         window.arenaAudio.playBuff();
         emitShockwave(b.x, b.z, 2.8, '#38bdf8');
+        emitFlash(new THREE.Vector3(b.x, 0.8, b.z), '#7dd3fc', 3.4, 0.28);
+        emitEmbers(new THREE.Vector3(b.x, 0.5, b.z), '#38bdf8', 14, 1.0);
         spawnHitPop(new THREE.Vector3(f.x, 1.8, f.z), 'POWER UP!', 'buff');
         pushKillFeed(`<b>${f.name}</b> ăn hộp tăng sức mạnh`, 'cyan');
         break;
@@ -1263,6 +1712,8 @@ function updatePhysics(dt) {
       state.shake = 0.65;
       emitShockwave(bm.x, bm.z, 7.2, '#ff5b37');
       emitSparks(new THREE.Vector3(bm.x, 0.7, bm.z), 36, '#ff6b3d', 1.5);
+      emitFlash(new THREE.Vector3(bm.x, 0.8, bm.z), '#ffb070', 9, 0.42);
+      emitEmbers(new THREE.Vector3(bm.x, 0.4, bm.z), '#ff6b3d', 40, 3.2);
 
       // Blast everyone radially outward!
       for (const f of fighters) {
@@ -1281,42 +1732,10 @@ function updatePhysics(dt) {
     }
   }
 
-  // Update 3D Sparks
-  for (let i = sparks.length - 1; i >= 0; i--) {
-    const s = sparks[i];
-    s.life -= dt;
-    s.vy -= 26 * dt;
-    s.mesh.position.x += s.vx * dt;
-    s.mesh.position.y += s.vy * dt;
-    s.mesh.position.z += s.vz * dt;
-    if (s.mesh.position.y < 0.05 && Math.hypot(s.mesh.position.x, s.mesh.position.z) < arenaR) {
-      s.mesh.position.y = 0.05;
-      s.vy *= -0.45;
-    }
-    s.mesh.lookAt(s.mesh.position.x + s.vx, s.mesh.position.y + s.vy, s.mesh.position.z + s.vz);
-    s.mesh.scale.setScalar(Math.max(0.01, s.life / s.maxLife));
-    if (s.life <= 0) {
-      scene.remove(s.mesh);
-      s.mat.dispose();
-      sparks.splice(i, 1);
-    }
-  }
-
-  // Update Shockwaves
-  for (let i = shockwaves.length - 1; i >= 0; i--) {
-    const sw = shockwaves[i];
-    sw.life -= dt;
-    const t = 1 - sw.life / sw.maxLife;
-    const sc = 1 + t * sw.maxScale;
-    sw.mesh.scale.set(sc, sc, 1);
-    sw.mat.opacity = (1 - t) * 0.85;
-    if (sw.life <= 0) {
-      scene.remove(sw.mesh);
-      sw.geo.dispose();
-      sw.mat.dispose();
-      shockwaves.splice(i, 1);
-    }
-  }
+  // Update pooled FX (sparks, glow particles, shockwaves)
+  updateSparks(dt, arenaR);
+  updateGlow(dt);
+  updateShockwaves(dt);
 
   // Auto-Live Viewer Bot
   if (state.autoLive && !state.roundOver) {
@@ -1369,14 +1788,21 @@ function updateCameraAndOverlays(dt) {
   const targetY = baseCamPos.y * zoomFactor;
   const targetZ = baseCamPos.z * zoomFactor;
 
-  camera.position.x += (targetX - camera.position.x) * Math.min(1, dt * 2.5);
-  camera.position.y += (targetY - camera.position.y) * Math.min(1, dt * 2.5);
-  camera.position.z += (targetZ - camera.position.z) * Math.min(1, dt * 2.5);
+  camBase.x += (targetX - camBase.x) * Math.min(1, dt * 2.5);
+  camBase.y += (targetY - camBase.y) * Math.min(1, dt * 2.5);
+  camBase.z += (targetZ - camBase.z) * Math.min(1, dt * 2.5);
+  camera.position.copy(camBase);
 
-  if (state.shake > 0.01) {
-    camera.position.x += (Math.random() - 0.5) * state.shake;
-    camera.position.y += (Math.random() - 0.5) * state.shake * 0.6;
-    state.shake = Math.max(0, state.shake - dt * 2.4);
+  // Smooth organic camera shake (layered sine noise + exponential decay, no jitter)
+  if (state.shake > 0.002) {
+    const t = clock.elapsedTime;
+    const amp = state.shake;
+    camera.position.x += (Math.sin(t * 43.1) * 0.6 + Math.sin(t * 27.7 + 1.7) * 0.4) * amp;
+    camera.position.y += (Math.sin(t * 37.3 + 0.6) * 0.6 + Math.sin(t * 21.9 + 2.3) * 0.4) * amp * 0.55;
+    camera.position.z += Math.sin(t * 31.7 + 4.1) * amp * 0.35;
+    state.shake *= Math.pow(0.015, dt);
+  } else {
+    state.shake = 0;
   }
 
   camera.lookAt(camTarget);
@@ -1390,8 +1816,7 @@ function updateCameraAndOverlays(dt) {
     tempVec.project(camera);
     const sx = (tempVec.x * 0.5 + 0.5) * w;
     const sy = (-tempVec.y * 0.5 + 0.5) * h;
-    f.tagEl.style.left = `${sx}px`;
-    f.tagEl.style.top = `${sy}px`;
+    f.tagEl.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) translate(-50%, -100%)`;
   }
 }
 
@@ -1403,7 +1828,9 @@ function animate() {
 
   updatePhysics(dt);
   updateCameraAndOverlays(dt);
-  renderer.render(scene, camera);
+  updateEdgeGlow(dt, clock.elapsedTime);
+  updateAmbient(dt, clock.elapsedTime);
+  composer.render(dt);
 }
 
 // ==========================================================================
