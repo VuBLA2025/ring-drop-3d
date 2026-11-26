@@ -200,6 +200,9 @@ class ArenaVoice {
       'Tặng Kính Râm để đánh sập ngay vòng sàn ngoài, tạo pha lật kèo cực gắt nào mọi người!'
     ];
 
+    // Câu đang lấy giọng / đang phát (để chen ngang không làm mất câu).
+    this._current = null;
+
   }
 
   stopAudio() {
@@ -231,11 +234,16 @@ class ArenaVoice {
     // Giọng chạy trên server nên không cần kiểm tra giọng trình duyệt nữa.
     if (!this.enabled) return;
 
-    // High-priority Boss / Big Gift interrupts low-priority hype speech immediately
+    // High-priority Boss / Big Gift interrupts low-priority hype speech immediately.
+    // Câu đang lấy giọng / đang phát được xếp lại lên đầu hàng để không bị mất
+    // (fetch xong muộn mà không còn ai phát nó nữa thì câu biến mất hẳn).
     if (priority >= 4 && this.speaking) {
+      const cur = this._current;
       this.stopAudio();
       this.speaking = false;
+      this._current = null;
       this.queue = this.queue.filter(item => item.priority >= 3);
+      if (cur && cur.priority < 4) this.queue.unshift(cur);
     }
 
     // Câu cảm ơn/quà thật (ưu tiên >= 2) không phải chờ sau các câu hype tự động:
@@ -261,12 +269,14 @@ class ArenaVoice {
 
     const item = this.queue.shift();
     this.speaking = true;
+    this._current = item;
     if (this.onSubtitle) this.onSubtitle(item.text);
 
     // Lấy giọng Hoài My từ server (Edge TTS) rồi phát bằng <audio>.
     const finish = () => {
       clearTimeout(safetyTimer);
       this.speaking = false;
+      this._current = null;
       if (this.queue.length === 0 && this.onSubtitle) {
         this.onSubtitle('');
       }
@@ -281,7 +291,9 @@ class ArenaVoice {
       return;
     }
 
-    fetch('/api/tts-say', {
+    // Lấy giọng từ server, lỗi mạng/502 thì thử lại 1 lần (Cloudflare thỉnh
+    // thoảng trả 502, trước đây câu đó mất hẳn không nói gì).
+    const fetchTts = (attempt) => fetch('/api/tts-say', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: item.text }),
@@ -290,7 +302,18 @@ class ArenaVoice {
         if (!r.ok) throw new Error('TTS ' + r.status);
         return r.blob();
       })
+      .catch((e) => {
+        if (attempt < 2) {
+          return new Promise((res) => setTimeout(() => res(fetchTts(attempt + 1)), 800));
+        }
+        throw e;
+      });
+
+    fetchTts(1)
       .then((blob) => {
+        // Câu này đã bị chen ngang / hết giờ an toàn trong lúc chờ fetch:
+        // nó đã được xếp lại hàng, không phát chèn ở đây nữa.
+        if (this._current !== item) return;
         if (this.currentUrl) {
           try { URL.revokeObjectURL(this.currentUrl); } catch (e) {}
         }
@@ -302,8 +325,8 @@ class ArenaVoice {
         if (p && p.catch) p.catch(() => finish());
       })
       .catch(() => {
-        // Server TTS lỗi: chỉ hiện phụ đề, không câm cả sân.
-        finish();
+        // Server TTS lỗi cả 2 lần: chỉ hiện phụ đề, không câm cả sân.
+        if (this._current === item) finish();
       });
   }
 
