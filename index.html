@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RING DROP 3D — Đấu Trường Bi Vũ Khí | TikTok LIVE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="shell" id="appShell">
+    <!-- 9:16 Portrait 3D Arena Stage -->
+    <main class="stage-wrap">
+      <div class="stage-frame" id="stageFrame">
+        <div id="threeMount"></div>
+        <!-- Crisp 2D projected nameplates & KO callouts -->
+        <div class="overlay-layer" id="overlayLayer"></div>
+
+        <!-- Broadcast HUD -->
+        <div class="hud">
+          <div class="hud-top">
+            <div class="live-badge">
+              <span class="dot"></span>
+              <span>LIVE</span>
+              <span class="sep"></span>
+              <span id="viewerCount">3.4K</span>
+            </div>
+            <div class="round-pill">
+              <span>ROUND <b id="roundNum">1</b></span>
+              <span class="sep"></span>
+              <span>ALIVE <b id="aliveCount">0</b></span>
+            </div>
+          </div>
+
+          <!-- Ring Shrink Timer Bar -->
+          <div class="shrink-bar-card">
+            <div class="shrink-meta">
+              <span class="shrink-label" id="shrinkLabel">THU HẸP SÀN ĐẤU</span>
+              <span class="shrink-timer" id="shrinkTimer">15.0s</span>
+            </div>
+            <div class="shrink-track">
+              <div class="shrink-fill" id="shrinkFill"></div>
+            </div>
+          </div>
+
+          <!-- Gift Thank-You Shoutout Spotlight (pops when someone gifts!) -->
+          <div class="gift-spotlight-wrap" id="giftSpotlightWrap"></div>
+
+          <!-- Crisp Kill / Event Feed -->
+          <div class="kill-feed" id="killFeed"></div>
+
+          <!-- Center Announcement Banner -->
+          <div class="center-callout" id="centerCallout"></div>
+
+          <!-- Bottom Area: Live MC Voice Subtitle + Full Gift Guide Board -->
+          <div class="hud-bottom">
+            <!-- MC Live Voice Subtitle Bar -->
+            <div class="mc-subtitle hidden" id="mcSubtitle">
+              <div class="eq-bars" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </div>
+              <span class="mc-label">MC</span>
+              <span class="mc-text" id="mcSubtitleText"></span>
+            </div>
+
+            <!-- On-Screen Gift Table for TikTok Viewers -->
+            <div class="gift-board" id="giftBoard">
+              <div class="gb-header">
+                <span class="gb-title">BẢNG QUÀ &amp; LỆNH CHƠI</span>
+                <span class="gb-hint">Tặng quà được MC hô tên ngay!</span>
+              </div>
+              <div class="gb-grid">
+                <div class="gb-item free">
+                  <span class="gb-icon">💬</span>
+                  <div class="gb-txt">
+                    <b>Comment</b>
+                    <span>Bi Kiếm</span>
+                  </div>
+                </div>
+                <div class="gb-item free">
+                  <span class="gb-icon">❤️</span>
+                  <div class="gb-txt">
+                    <b>Thả Tim</b>
+                    <span>Hộp Buff</span>
+                  </div>
+                </div>
+                <div class="gb-item free">
+                  <span class="gb-icon">➕</span>
+                  <div class="gb-txt">
+                    <b>Follow</b>
+                    <span>Bi Chùy Gai</span>
+                  </div>
+                </div>
+                <div class="gb-item rose">
+                  <span class="gb-icon">🌹</span>
+                  <div class="gb-txt">
+                    <b>Hoa Hồng</b>
+                    <span>Bi Lưỡi Cưa</span>
+                  </div>
+                </div>
+                <div class="gb-item bomb">
+                  <span class="gb-icon">🍩</span>
+                  <div class="gb-txt">
+                    <b>Donut</b>
+                    <span>Bom Nổ Sàn</span>
+                  </div>
+                </div>
+                <div class="gb-item collapse">
+                  <span class="gb-icon">🕶️</span>
+                  <div class="gb-txt">
+                    <b>Kính Râm</b>
+                    <span>Sập Vòng Sàn</span>
+                  </div>
+                </div>
+                <div class="gb-item titan span-2">
+                  <span class="gb-icon">🦁</span>
+                  <div class="gb-txt">
+                    <b>Sư Tử / Thiên Hà</b>
+                    <span>BOSS TITAN VÀNG • 4 ĐẠI KIẾM • NỨT SÀN</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Round Winner Card -->
+        <div class="winner-modal hidden" id="winnerModal">
+          <div class="winner-box">
+            <span class="winner-eyebrow">CHAMPION • ROUND <b id="winRound">1</b></span>
+            <h2 id="winnerName">—</h2>
+            <div class="winner-stats">
+              <div>
+                <span>KILLS</span>
+                <strong id="winnerKills">0</strong>
+              </div>
+              <div>
+                <span>VŨ KHÍ</span>
+                <strong id="winnerWeapon">BLADE</strong>
+              </div>
+            </div>
+            <div class="winner-next">Ván mới bắt đầu sau <b id="nextRoundSec">4</b>s...</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Sleek Modern Control Panel -->
+    <aside class="panel" id="controlPanel">
+      <div class="panel-head">
+        <div>
+          <span class="tag">3D PHYSICS ARENA • THREE.JS</span>
+          <h1>RING DROP 3D</h1>
+          <p class="desc">Đấu trường bi vũ khí 3D có giọng MC tiếng Việt tự hô cảm ơn tặng quà, kêu gọi tương tác và bảng quà trực quan.</p>
+        </div>
+        <div class="head-btns">
+          <button class="icon-btn" id="btnSound" title="Bật / Tắt hiệu ứng âm thanh (SFX)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+          </button>
+          <button class="icon-btn" id="btnObs" title="Chế độ OBS 9:16 sạch">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Vietnamese MC Voice & Gift Board Settings -->
+      <div class="card voice-card">
+        <div class="card-row">
+          <span class="card-title">🎙️ Giọng MC Hô Cảm Ơn Quà (Tiếng Việt)</span>
+          <label class="toggle">
+            <input type="checkbox" id="toggleVoice" checked />
+            <span class="track"></span>
+          </label>
+        </div>
+        <div class="card-row compact">
+          <span class="sub-label">Tự động kêu gọi thả tim &amp; tặng quà</span>
+          <label class="toggle small">
+            <input type="checkbox" id="toggleAutoHype" checked />
+            <span class="track"></span>
+          </label>
+        </div>
+        <div class="card-row compact">
+          <span class="sub-label">Hiện Bảng Quà trên màn hình 9:16</span>
+          <label class="toggle small">
+            <input type="checkbox" id="toggleGiftBoard" checked />
+            <span class="track"></span>
+          </label>
+        </div>
+        <button class="hype-now-btn" id="btnHypeNow">📢 Hô kêu gọi tặng quà ngay (Phím H)</button>
+      </div>
+
+      <!-- Auto Live Simulation -->
+      <div class="card">
+        <div class="card-row">
+          <span class="card-title">Giả lập người xem Live</span>
+          <label class="toggle">
+            <input type="checkbox" id="toggleAuto" checked />
+            <span class="track"></span>
+          </label>
+        </div>
+        <div class="seg-control">
+          <button class="seg-btn active" data-pace="normal">Vừa phải</button>
+          <button class="seg-btn" data-pace="fast">Đông vui</button>
+          <button class="seg-btn" data-pace="mayhem">Loạn chiến</button>
+        </div>
+      </div>
+
+      <!-- Spawn & Combat Triggers -->
+      <div class="card">
+        <div class="card-title">Tương tác &amp; Quà nhỏ (Phím 1–4)</div>
+        <div class="btn-grid">
+          <button class="cmd-btn" data-cmd="spawnBlade">
+            <span class="cmd-key">1</span>
+            <span class="cmd-name">💬 Comment • Bi Kiếm</span>
+            <span class="cmd-sub">Miễn phí • Katana đôi</span>
+          </button>
+          <button class="cmd-btn" data-cmd="spawnMace">
+            <span class="cmd-key">2</span>
+            <span class="cmd-name">➕ Follow • Chùy Gai</span>
+            <span class="cmd-sub">MC hô cảm ơn Follow</span>
+          </button>
+          <button class="cmd-btn accent-rose" data-cmd="spawnSaw">
+            <span class="cmd-key">3</span>
+            <span class="cmd-name">🌹 Hoa Hồng • Lưỡi Cưa</span>
+            <span class="cmd-sub">MC hô cảm ơn Hoa Hồng</span>
+          </button>
+          <button class="cmd-btn accent-cyan" data-cmd="dropBuff">
+            <span class="cmd-key">4</span>
+            <span class="cmd-name">❤️ Thả Tim • Hộp Buff</span>
+            <span class="cmd-sub">Bi to hơn + Xoay nhanh</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- High-Impact Gift Chaos Triggers -->
+      <div class="card">
+        <div class="card-title">Quà Tặng Lớn — MC Hô Vang &amp; Vinh Danh</div>
+        <div class="btn-grid">
+          <button class="cmd-btn accent-orange" data-cmd="dropBomb">
+            <span class="cmd-key">5</span>
+            <span class="cmd-name">🍩 Donut • Bom Nổ</span>
+            <span class="cmd-sub">Nổ hất văng ra mép sàn</span>
+          </button>
+          <button class="cmd-btn accent-red" data-cmd="collapseRing">
+            <span class="cmd-key">6</span>
+            <span class="cmd-name">🕶️ Kính Râm • Sập Sàn</span>
+            <span class="cmd-sub">Đánh sập 1 vòng sàn ngoài</span>
+          </button>
+          <button class="cmd-btn accent-gold full" data-cmd="spawnTitan">
+            <span class="cmd-key">7</span>
+            <span class="cmd-name">🦁 SƯ TỬ • BOSS TITAN VÀNG</span>
+            <span class="cmd-sub">MC hô chấn động • 4 Đại Kiếm • Rơi nứt sàn</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Round & Leaderboard -->
+      <div class="card">
+        <div class="card-row">
+          <span class="card-title">Bảng Xếp Hạng Vô Địch</span>
+          <button class="mini-reset" id="btnResetRound">Ván mới</button>
+        </div>
+        <div class="lb-list" id="lbList">
+          <div class="lb-empty">Chưa có nhà vô địch — đang đấu Round 1...</div>
+        </div>
+      </div>
+
+      <p class="foot-note">
+        Mẹo: Click vào bất kỳ nút nào 1 lần để trình duyệt mở khóa giọng nói tiếng Việt và âm thanh SFX.
+      </p>
+    </aside>
+
+    <button class="exit-obs hidden" id="btnExitObs">← Hiện bảng điều khiển</button>
+  </div>
+
+  <script src="audio.js"></script>
+  <script type="module" src="game.js"></script>
+</body>
+</html>
