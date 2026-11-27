@@ -36,6 +36,18 @@ async function getTts(voice) {
 
 let ttsBusy = 0; // số lần đọc thật đang chạy (để câu giữ ấm không chen vào)
 
+// Tất cả lần gọi Edge TTS PHẢI xếp hàng qua một chuỗi duy nhất (như Chùa
+// Bình An): gọi Microsoft song song nhiều câu cùng lúc hay bị ngắt giữa
+// chừng / trả 502 (ghi nhận tối 31/10). Chuỗi này gồm cả câu thật, câu
+// giữ ấm và câu hype đọc trước — không câu nào được chạy chồng lên nhau.
+let ttsChain = Promise.resolve();
+let ttsRealWaiting = 0; // số câu thật đang xếp hàng chờ tới lượt (để câu hype/warmup nhường)
+function runTtsSerialized(fn) {
+  const run = ttsChain.then(fn);
+  ttsChain = run.catch(() => {});
+  return run;
+}
+
 function synthEdge(text, voice) {
   return new Promise(async (resolve, reject) => {
     let done = false;
@@ -188,17 +200,25 @@ function streamEdgeToRes(text, voice, res) {
 
 // Giữ kết nối Edge ấm: đọc một câu ngắn mỗi 50s (bỏ qua cache) để lần đọc
 // thật sau đó không phải bắt tay lại từ đầu — tiết kiệm vài giây và đỡ lỗi
-// do kết nối nguội. Bỏ qua khi đang có câu thật cần đọc.
+// do kết nối nguội. Bỏ qua khi đang có câu thật cần đọc. Câu giữ ấm cũng
+// chạy qua chuỗi xếp hàng (không chạy chồng lên câu thật).
 const WARMUP_TEXT = 'Chào mừng anh em đến với sàn đấu!';
-setInterval(async () => {
-  if (ttsBusy > 0) return;
-  try {
-    const tts = await getTts(VOICES[currentVoiceKey]);
-    const { audioStream } = await tts.toStream(WARMUP_TEXT, { rate: 1, pitch: '+0Hz' });
-    audioStream.on('data', () => {});
-    audioStream.on('error', () => {});
-    audioStream.resume();
-  } catch (e) { /* lần sau thử lại, không ảnh hưởng game */ }
+setInterval(() => {
+  if (ttsBusy > 0 || ttsRealWaiting > 0) return;
+  runTtsSerialized(async () => {
+    if (ttsBusy > 0 || ttsRealWaiting > 0) return; // câu thật chen vào trước khi tới lượt giữ ấm
+    try {
+      const tts = await getTts(VOICES[currentVoiceKey]);
+      const { audioStream } = await tts.toStream(WARMUP_TEXT, { rate: 1, pitch: '+0Hz' });
+      await new Promise((resolve) => {
+        audioStream.on('data', () => {});
+        audioStream.on('error', resolve);
+        audioStream.on('end', resolve);
+        audioStream.resume();
+        setTimeout(resolve, 10000); // không để câu giữ ấm kẹt chuỗi
+      });
+    } catch (e) { /* lần sau thử lại, không ảnh hưởng game */ }
+  });
 }, 50000);
 
 // Đọc trước 7 câu hype (câu cố định, nút Hô dùng đi dùng lại) để nút Hô
@@ -214,7 +234,10 @@ const HYPE_LINES = [
 ];
 setTimeout(async () => {
   for (const line of HYPE_LINES) {
-    try { await synthCached(line, VOICES[currentVoiceKey]); } catch (e) {}
+    // Câu thật đang chờ thì dừng đọc trước ngay: câu hype còn lại sẽ được
+    // đọc khi cần rồi lưu cache, không để buổi live mới mở đã phải chờ.
+    if (ttsRealWaiting > 0) break;
+    try { await runTtsSerialized(() => synthCached(line, VOICES[currentVoiceKey])); } catch (e) {}
     await new Promise((r) => setTimeout(r, 300));
   }
   console.log('[ringdrop] da doc truoc xong 7 cau hype');
@@ -373,17 +396,23 @@ app.get('/api/tts-say', async (req, res) => {
     return res.type('audio/mpeg').set('Cache-Control', 'no-store').send(hit);
   }
   const streamOnce = () => streamEdgeToRes(text, VOICES[currentVoiceKey], res);
+  ttsRealWaiting++;
   try {
-    await streamOnce();
+    // Toàn bộ lần đọc (kể cả thử lại) chạy trong chuỗi xếp hàng: không để
+    // câu giữ ấm hay câu hype đọc trước chạy chồng lên câu thật.
+    await runTtsSerialized(async () => {
+      ttsRealWaiting--;
+      try {
+        await streamOnce();
+      } catch (e) {
+        if (res.destroyed || res.writableEnded || res.headersSent) return;
+        // Lỗi trước khi có tiếng: thử lại 1 lần với kết nối mới.
+        await streamOnce();
+      }
+    });
   } catch (e) {
-    if (res.destroyed || res.writableEnded || res.headersSent) return;
-    // Lỗi trước khi có tiếng: thử lại 1 lần với kết nối mới.
-    try {
-      await streamOnce();
-    } catch (e2) {
-      console.error('[tts-say]', e2 && e2.message ? e2.message : e2);
-      if (!res.headersSent) res.status(502).json({ ok: false, error: 'Không đọc được giọng Hoài My lúc này, thử lại sau' });
-    }
+    console.error('[tts-say]', e && e.message ? e.message : e);
+    if (!res.headersSent && !res.destroyed) res.status(502).json({ ok: false, error: 'Không đọc được giọng Hoài My lúc này, thử lại sau' });
   }
 });
 
