@@ -11,6 +11,17 @@ const { TikTokLiveConnection } = require('tiktok-live-connector');
 
 const PORT = parseInt(process.env.PORT || '80', 10);
 
+// Game live không được chết giữa chừng vì một lỗi TTS lẻ: ghi log rồi sống
+// tiếp (chuỗi TTS tự tạo lại kết nối Edge hỏng ở lần sau). Đã ghi nhận
+// 27/11: cụm 502 + cache trong bộ nhớ mất cho thấy process có thể đã
+// khởi động lại giữa live — không để một exception lẻ làm sập cả game.
+process.on('unhandledRejection', (err) => {
+  console.error('[ringdrop] unhandledRejection (khong tat server):', err && err.message ? err.message : err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[ringdrop] uncaughtException (khong tat server):', err && err.message ? err.message : err);
+});
+
 // ---------- Edge TTS (kênh đọc to của Microsoft Edge, không cần key) ----------
 // Dùng gói msedge-tts: nó tự lo token Sec-MS-GEC + sửa lệch giờ, chạy phía server.
 const VOICES = {
@@ -128,6 +139,10 @@ function streamEdgeToRes(text, voice, res) {
       done = true;
       clearTimeout(timer);
       ttsBusy = Math.max(0, ttsBusy - 1);
+      // Hủy luồng Edge cũ ngay: không để nó tiếp tục đẩy đoạn mp3 vào res
+      // trong lúc lần thử lại đang dùng cùng res — hai luồng viết chồng nhau
+      // sẽ làm hỏng phản hồi (Cloudflare trả 502 "error code: 502").
+      try { if (audioStream) audioStream.destroy(); } catch (e) {}
       if (err) {
         if (!firstByte) {
           ttsPool.delete(voice.key); // kết nối hỏng thì lần sau tạo lại
@@ -218,7 +233,7 @@ setInterval(() => {
         setTimeout(resolve, 10000); // không để câu giữ ấm kẹt chuỗi
       });
     } catch (e) { /* lần sau thử lại, không ảnh hưởng game */ }
-  });
+  }).catch(() => {}); // promise thả nổi: không để rejection lẻ làm sập process
 }, 50000);
 
 // Đọc trước 7 câu hype (câu cố định, nút Hô dùng đi dùng lại) để nút Hô
