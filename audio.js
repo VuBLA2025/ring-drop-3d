@@ -348,6 +348,14 @@ class ArenaVoice {
         `Cảm ơn ${userName} tặng Kính Râm kích hoạt Sập Sàn! Vòng ngoài đang rơi rồi!`,
         `Căng cực! ${userName} vừa đánh sập vòng sàn ngoài, anh em cẩn thận mép sàn!`
       ],
+      saw2: [
+        `Cảm ơn ${userName} tặng quà 10 xu! Song Lưỡi Cưa cùng vào sàn càn quét!`,
+        `Quà 10 xu tới rồi! Cảm ơn ${userName}, hai Bi Lưỡi Cưa xuất trận!`
+      ],
+      storm: [
+        `Bão Bom đây rồi! Cảm ơn ${userName} tặng quà 50 xu, hai quả Bom cùng Hộp Buff rơi xuống!`,
+        `Cảm ơn đại gia ${userName} tặng quà 50 xu! Bão Bom càn quét sàn đấu!`
+      ],
       titan: [
         `Đỉnh của chóp! Cảm ơn đại gia ${userName} tặng Sư Tử triệu hồi Boss Titan Vàng bốn đại kiếm!`,
         `Chấn động sàn đấu! Cảm ơn ${userName} đã thả Boss Titan Vàng khổng lồ càn quét tất cả!`
@@ -357,7 +365,7 @@ class ArenaVoice {
     const list = templates[giftType];
     if (!list) return;
     const line = list[Math.floor(Math.random() * list.length)];
-    const priority = giftType === 'titan' ? 4 : (giftType === 'bomb' || giftType === 'collapse') ? 3 : 2;
+    const priority = giftType === 'titan' ? 4 : (giftType === 'bomb' || giftType === 'collapse' || giftType === 'storm') ? 3 : 2;
     this.speak(line, priority);
   }
 

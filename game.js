@@ -1162,7 +1162,43 @@ function dropBuffCrate() {
   buffs.push({ group, x, y: 7.5, z, vy: 0, life: 14 });
 }
 
-function dropShockwaveBomb(senderName = null) {
+function dropDoubleSaw(senderName = null) {
+  if (state.roundOver) return;
+  const name = senderName || randomViewerName();
+  spawnFighter('SAW', name, null, null, false);
+  spawnFighter('SAW', name, null, null, false);
+  window.arenaAudio.playGiftFanfare(1);
+  pushKillFeed(`<b>${name}</b> tặng 🎁 <b>10 xu • Song Lưỡi Cưa ×2</b>`, 'cyan');
+  showGiftSpotlight({
+    icon: '⚔️',
+    userName: name,
+    giftLabel: 'Quà 10 xu • Song Lưỡi Cưa',
+    effectText: 'Hai Bi Lưỡi Cưa cùng vào sàn càn quét!',
+    tierClass: 'tier-rose'
+  });
+  window.arenaVoice.announceGift(name, 'saw2');
+}
+
+function dropGiftStorm(senderName = null) {
+  if (state.roundOver) return;
+  const name = senderName || randomViewerName();
+  dropShockwaveBomb(name, true);
+  dropShockwaveBomb(name, true);
+  dropBuffCrate();
+  window.arenaAudio.playGiftFanfare(2);
+  showCallout(`${name.toUpperCase()} TẠO BÃO BOM!`, 'danger');
+  pushKillFeed(`<b>${name}</b> tặng 💣 <b>50 xu • Bão Bom</b>`);
+  showGiftSpotlight({
+    icon: '💣',
+    userName: name,
+    giftLabel: 'Quà 50 xu • Bão Bom',
+    effectText: 'Hai Bom Xung Kích + Hộp Buff rơi xuống!',
+    tierClass: 'tier-storm'
+  });
+  window.arenaVoice.announceGift(name, 'storm');
+}
+
+function dropShockwaveBomb(senderName = null, quiet = false) {
   if (state.roundOver) return;
   const name = senderName || randomViewerName();
   const a = Math.random() * Math.PI * 2;
@@ -1195,17 +1231,19 @@ function dropShockwaveBomb(senderName = null) {
   group.position.set(x, 8.5, z);
   scene.add(group);
   bombs.push({ group, shell, ring, x, y: 8.5, z, vy: 0, fuse: 2.1, sender: name });
-  window.arenaAudio.playGiftFanfare(2);
-  showCallout(`${name.toUpperCase()} THẢ BOM XUNG KÍCH!`, 'danger');
-  pushKillFeed(`<b>${name}</b> tặng 🍩 <b>Bom Xung Kích</b>`);
-  showGiftSpotlight({
-    icon: '🍩',
-    userName: name,
-    giftLabel: 'Donut • Bom Xung Kích',
-    effectText: 'Cảnh báo nổ hất văng toàn bộ đối thủ!',
-    tierClass: 'tier-bomb'
-  });
-  window.arenaVoice.announceGift(name, 'bomb');
+  if (!quiet) {
+    window.arenaAudio.playGiftFanfare(2);
+    showCallout(`${name.toUpperCase()} THẢ BOM XUNG KÍCH!`, 'danger');
+    pushKillFeed(`<b>${name}</b> tặng 🍩 <b>Bom Xung Kích</b>`);
+    showGiftSpotlight({
+      icon: '🍩',
+      userName: name,
+      giftLabel: 'Donut • Bom Xung Kích',
+      effectText: 'Cảnh báo nổ hất văng toàn bộ đối thủ!',
+      tierClass: 'tier-bomb'
+    });
+    window.arenaVoice.announceGift(name, 'bomb');
+  }
 }
 
 function triggerRingCollapse(manual = false, senderName = null) {
@@ -1752,11 +1790,13 @@ function updatePhysics(dt) {
       } else if (r < 0.50) {
         spawnFighter('MACE', null, null, null, Math.random() < 0.45);
       } else if (r < 0.64) {
-        spawnFighter('SAW', null, null, null, Math.random() < 0.55);
+        if (Math.random() < 0.25) dropDoubleSaw();
+        else spawnFighter('SAW', null, null, null, Math.random() < 0.55);
       } else if (r < 0.82) {
         dropBuffCrate();
       } else if (r < 0.94) {
-        dropShockwaveBomb();
+        if (Math.random() < 0.25) dropGiftStorm();
+        else dropShockwaveBomb();
       } else {
         spawnFighter('TITAN', null, null, null, true);
       }
@@ -1846,6 +1886,8 @@ function runCommand(cmd, user = null) {
     case 'dropBomb': dropShockwaveBomb(user); break;
     case 'collapseRing': triggerRingCollapse(true, user); break;
     case 'spawnTitan': spawnFighter('TITAN', user, null, null, true); break;
+    case 'spawnSaw2': dropDoubleSaw(user); break;
+    case 'dropStorm': dropGiftStorm(user); break;
   }
 }
 
@@ -1876,10 +1918,11 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
   }
 });
 
-// Keyboard shortcuts 1–7 + H for MC Hype
+// Keyboard shortcuts 1–9 + H for MC Hype
 const keys = {
   '1': 'spawnBlade', '2': 'spawnMace', '3': 'spawnSaw',
-  '4': 'dropBuff', '5': 'dropBomb', '6': 'collapseRing', '7': 'spawnTitan'
+  '4': 'dropBuff', '5': 'dropBomb', '6': 'collapseRing', '7': 'spawnTitan',
+  '8': 'spawnSaw2', '9': 'dropStorm'
 };
 window.addEventListener('keydown', (e) => {
   if (keys[e.key]) runCommand(keys[e.key]);
@@ -1998,6 +2041,8 @@ window.RingDropAPI = {
     if (type === 'titan') spawnFighter('TITAN', username, null, null, true);
     else if (type === 'bomb') dropShockwaveBomb(username);
     else if (type === 'collapse') triggerRingCollapse(true, username);
+    else if (type === 'saw2') dropDoubleSaw(username);
+    else if (type === 'storm') dropGiftStorm(username);
     else spawnFighter('SAW', username, null, null, true);
   }
 };

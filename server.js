@@ -154,10 +154,17 @@ let tiktok = null;
 function mapGift(d) {
   const name = String(d.giftName || '').toLowerCase();
   const diamonds = d.diamondCount || 0;
-  if (name.includes('lion') || name.includes('galaxy') || diamonds >= 1000) return 'titan';
+  // Tổng xu của cả chuỗi quà lặp (VD: Hoa Hồng x10 = 10 xu)
+  const total = diamonds * (d.repeatCount || 1);
+  if (name.includes('lion') || name.includes('galaxy') || total >= 1000) return 'titan';
   if (name.includes('donut')) return 'bomb';
   if (name.includes('sunglass')) return 'collapse';
   if (name.includes('rose')) return 'rose';
+  // Quà lạ (không nằm trong bảng tên): xếp bậc theo tổng xu
+  if (total >= 50) return 'storm';
+  if (total >= 30) return 'collapse';
+  if (total >= 20) return 'bomb';
+  if (total >= 10) return 'saw2';
   return 'saw';
 }
 

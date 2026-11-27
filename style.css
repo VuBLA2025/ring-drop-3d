@@ -296,6 +296,12 @@ html, body {
   background: linear-gradient(90deg, rgba(58, 20, 14, 0.92), rgba(18, 21, 32, 0.9));
 }
 
+.gift-spotlight.tier-storm {
+  border-color: rgba(251, 146, 60, 0.85);
+  background: linear-gradient(90deg, rgba(62, 32, 8, 0.94), rgba(20, 18, 14, 0.9));
+  box-shadow: 0 0 22px rgba(251, 146, 60, 0.22);
+}
+
 .gift-spotlight.tier-titan {
   border-color: rgba(245, 185, 66, 0.92);
   background: linear-gradient(90deg, rgba(64, 46, 12, 0.95), rgba(24, 20, 14, 0.92));
@@ -526,6 +532,9 @@ html, body {
 .gb-item.rose { border-color: rgba(251, 113, 133, 0.35); background: rgba(251, 113, 133, 0.08); }
 .gb-item.bomb { border-color: rgba(255, 91, 55, 0.4); background: rgba(255, 91, 55, 0.09); }
 .gb-item.collapse { border-color: rgba(244, 63, 94, 0.4); background: rgba(244, 63, 94, 0.09); }
+.gb-item.storm { border-color: rgba(251, 146, 60, 0.5); background: linear-gradient(90deg, rgba(251, 146, 60, 0.16), rgba(251, 146, 60, 0.05)); }
+.gb-item.storm .gb-txt b { color: #fdba74; }
+.gb-item.storm .gb-txt span { color: #fb923c; font-weight: 600; }
 .gb-item.titan {
   border-color: rgba(245, 185, 66, 0.55);
   background: linear-gradient(90deg, rgba(245, 185, 66, 0.18), rgba(245, 185, 66, 0.06));
