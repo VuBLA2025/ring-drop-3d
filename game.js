@@ -39,11 +39,11 @@ function createBackdropTexture() {
   return tex;
 }
 scene.background = createBackdropTexture();
-scene.fog = new THREE.Fog('#0b0f19', 30, 66);
+scene.fog = new THREE.Fog('#0b0f19', 37.5, 82.5);
 
 // Elevated Sports Broadcast 3D Camera (balanced nicely above the bottom Gift Board)
 const camera = new THREE.PerspectiveCamera(38, 9 / 16, 0.5, 140);
-const baseCamPos = new THREE.Vector3(0, 32.0, 25.5);
+const baseCamPos = new THREE.Vector3(0, 40.5, 31.6);
 const camTarget = new THREE.Vector3(0, -1.8, 1.2);
 const camBase = baseCamPos.clone();
 camera.position.copy(baseCamPos);
@@ -92,8 +92,8 @@ keyLight.castShadow = true;
 keyLight.shadow.mapSize.width = 2048;
 keyLight.shadow.mapSize.height = 2048;
 keyLight.shadow.camera.near = 6;
-keyLight.shadow.camera.far = 48;
-const shadowBound = 13;
+keyLight.shadow.camera.far = 60;
+const shadowBound = 16;
 keyLight.shadow.camera.left = -shadowBound;
 keyLight.shadow.camera.right = shadowBound;
 keyLight.shadow.camera.top = shadowBound;
@@ -105,7 +105,7 @@ const rimLight = new THREE.DirectionalLight(0x60a5fa, 1.0);
 rimLight.position.set(-12, 10, -14);
 scene.add(rimLight);
 
-const underGlowLight = new THREE.PointLight(0xff5b37, 2.2, 24);
+const underGlowLight = new THREE.PointLight(0xff5b37, 2.2, 30);
 underGlowLight.position.set(0, -4.5, 0);
 scene.add(underGlowLight);
 
@@ -138,9 +138,9 @@ handleResize();
 // ARCHITECTURAL 3D MULTI-RING ARENA (Collapsible Modular Wedges!)
 // ==========================================================================
 const RING_SPECS = [
-  { id: 0, innerR: 0, outerR: 4.5, segments: 1, color: '#1e2534', accent: '#334155', metalness: 0.55, roughness: 0.34 },
-  { id: 1, innerR: 4.58, outerR: 6.85, segments: 10, color: '#262f42', accent: '#475569', metalness: 0.42, roughness: 0.38 },
-  { id: 2, innerR: 6.93, outerR: 9.0, segments: 14, color: '#1a202d', accent: '#ff5b37', metalness: 0.52, roughness: 0.35 }
+  { id: 0, innerR: 0, outerR: 5.63, segments: 1, color: '#1e2534', accent: '#334155', metalness: 0.55, roughness: 0.34 },
+  { id: 1, innerR: 5.73, outerR: 8.56, segments: 10, color: '#262f42', accent: '#475569', metalness: 0.42, roughness: 0.38 },
+  { id: 2, innerR: 8.66, outerR: 11.25, segments: 14, color: '#1a202d', accent: '#ff5b37', metalness: 0.52, roughness: 0.35 }
 ];
 
 const arenaGroup = new THREE.Group();
@@ -148,12 +148,12 @@ scene.add(arenaGroup);
 
 // Subtle architectural structural rings floating in background depth
 const bgRingMat = new THREE.MeshStandardMaterial({ color: '#1b2333', metalness: 0.7, roughness: 0.35 });
-const outerFrameRing = new THREE.Mesh(new THREE.TorusGeometry(12.8, 0.08, 12, 64), bgRingMat);
+const outerFrameRing = new THREE.Mesh(new THREE.TorusGeometry(16.0, 0.08, 12, 64), bgRingMat);
 outerFrameRing.rotation.x = Math.PI / 2;
 outerFrameRing.position.y = -2.2;
 scene.add(outerFrameRing);
 
-const outerFrameRing2 = new THREE.Mesh(new THREE.TorusGeometry(15.2, 0.04, 12, 64), bgRingMat);
+const outerFrameRing2 = new THREE.Mesh(new THREE.TorusGeometry(19.0, 0.04, 12, 64), bgRingMat);
 outerFrameRing2.rotation.x = Math.PI / 2;
 outerFrameRing2.position.y = -4.5;
 scene.add(outerFrameRing2);
@@ -1014,7 +1014,7 @@ function spawnFighter(weaponType = 'BLADE', customName = null, dropX = null, dro
     ? { hex: '#f5b942', band: '#12151e' }
     : FIGHTER_PALETTES[Math.floor(Math.random() * FIGHTER_PALETTES.length)];
 
-  const radius = isTitan ? 1.05 : 0.72;
+  const radius = isTitan ? 0.92 : 0.63;
   const mass = isTitan ? 3.2 : weaponType === 'MACE' ? 1.35 : 1.0;
 
   const root = new THREE.Group();
@@ -1481,7 +1481,7 @@ function updatePhysics(dt) {
       for (const b of buffs) {
         if (b.y <= 0.75) {
           const d = Math.hypot(b.x - f.x, b.z - f.z);
-          if (d < 4.5 && d < bestDist) {
+          if (d < 5.6 && d < bestDist) {
             bestDist = d;
             targetX = b.x;
             targetZ = b.z;
