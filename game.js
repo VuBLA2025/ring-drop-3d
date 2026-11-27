@@ -39,11 +39,11 @@ function createBackdropTexture() {
   return tex;
 }
 scene.background = createBackdropTexture();
-scene.fog = new THREE.Fog('#0b0f19', 37.5, 82.5);
+scene.fog = new THREE.Fog('#0b0f19', 46, 102);
 
 // Elevated Sports Broadcast 3D Camera (balanced nicely above the bottom Gift Board)
 const camera = new THREE.PerspectiveCamera(38, 9 / 16, 0.5, 140);
-const baseCamPos = new THREE.Vector3(0, 40.5, 31.6);
+const baseCamPos = new THREE.Vector3(0, 50.4, 38.7);
 const camTarget = new THREE.Vector3(0, -1.8, 1.2);
 const camBase = baseCamPos.clone();
 camera.position.copy(baseCamPos);
