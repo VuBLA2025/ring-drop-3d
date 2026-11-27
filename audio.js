@@ -189,6 +189,7 @@ class ArenaVoice {
     this.audio = typeof Audio !== 'undefined' ? new Audio() : null;
     if (this.audio) this.audio.preload = 'auto';
     this.currentUrl = null;
+    this._ttsSeq = 0; // chống trình duyệt dùng lại đúng URL cũ cho câu khác nhau
 
     this.hypeLines = [
       'Anh em ơi, bình luận ngay để thả Bi Kiếm vào sàn chiến đấu miễn phí nào!',
@@ -291,43 +292,36 @@ class ArenaVoice {
       return;
     }
 
-    // Lấy giọng từ server, lỗi mạng/502 thì thử lại 1 lần (Cloudflare thỉnh
-    // thoảng trả 502, trước đây câu đó mất hẳn không nói gì).
-    const fetchTts = (attempt) => fetch('/api/tts-say', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: item.text }),
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error('TTS ' + r.status);
-        return r.blob();
-      })
-      .catch((e) => {
+    // Lấy giọng Hoài My từ server (Edge TTS) theo luồng: gắn audio.src thẳng
+    // vào endpoint GET để giọng bắt đầu nói ngay khi đoạn mp3 đầu tiên về
+    // (khoảng 2-3s với câu mới), thay vì chờ tải xong cả file mới phát.
+    // Lỗi mạng/502 thì thử lại 1 lần (Cloudflare thỉnh thoảng trả 502,
+    // trước đây câu đó mất hẳn không nói gì).
+    const url = '/api/tts-say?text=' + encodeURIComponent(item.text) + '&_=' + (++this._ttsSeq);
+    const tryPlay = (attempt) => {
+      if (this._current !== item) return;
+      this.audio.onended = finish;
+      this.audio.onerror = () => {
         if (attempt < 2) {
-          return new Promise((res) => setTimeout(() => res(fetchTts(attempt + 1)), 800));
+          setTimeout(() => tryPlay(attempt + 1), 800);
+        } else {
+          finish();
         }
-        throw e;
-      });
-
-    fetchTts(1)
-      .then((blob) => {
-        // Câu này đã bị chen ngang / hết giờ an toàn trong lúc chờ fetch:
-        // nó đã được xếp lại hàng, không phát chèn ở đây nữa.
-        if (this._current !== item) return;
-        if (this.currentUrl) {
-          try { URL.revokeObjectURL(this.currentUrl); } catch (e) {}
-        }
-        this.currentUrl = URL.createObjectURL(blob);
-        this.audio.onended = finish;
-        this.audio.onerror = finish;
-        this.audio.src = this.currentUrl;
-        const p = this.audio.play();
-        if (p && p.catch) p.catch(() => finish());
-      })
-      .catch(() => {
-        // Server TTS lỗi cả 2 lần: chỉ hiện phụ đề, không câm cả sân.
-        if (this._current === item) finish();
-      });
+      };
+      this.audio.src = url;
+      const p = this.audio.play();
+      if (p && p.catch) {
+        p.catch(() => {
+          if (this._current !== item) return;
+          if (attempt < 2) {
+            setTimeout(() => tryPlay(attempt + 1), 800);
+          } else {
+            finish();
+          }
+        });
+      }
+    };
+    tryPlay(1);
   }
 
   announceGift(userName, giftType) {

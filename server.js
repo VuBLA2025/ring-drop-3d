@@ -99,6 +99,93 @@ async function synthCached(text, voice) {
   return audio;
 }
 
+// Đọc Edge TTS theo luồng (stream): vừa đọc vừa đẩy từng đoạn mp3 về cho
+// trình duyệt, thay vì chờ đọc xong cả câu mới gửi. Trình duyệt gắn
+// audio.src thẳng vào endpoint nên giọng bắt đầu nói sau ~2-3s với câu mới
+// (thay vì 10-25s). Trong lúc stream vẫn gom đủ các đoạn để lưu cache cho
+// lần sau (câu lặp lại phát ngay như trước).
+function streamEdgeToRes(text, voice, res) {
+  return new Promise(async (resolve, reject) => {
+    let done = false;
+    let firstByte = false;
+    let sent = 0;
+    const chunks = [];
+    const timer = setTimeout(() => finish(new Error('Edge TTS timeout sau 20s')), 20000);
+    function finish(err) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      ttsBusy = Math.max(0, ttsBusy - 1);
+      if (err) {
+        if (!firstByte) {
+          ttsPool.delete(voice.key); // kết nối hỏng thì lần sau tạo lại
+          reject(err);
+        } else {
+          // Đã gửi được một phần: kết thúc luồng, trình duyệt phát tới đó.
+          try { res.end(); } catch (e) {}
+          resolve();
+        }
+      } else {
+        resolve();
+      }
+    }
+    ttsBusy++;
+    let audioStream = null;
+    // Client ngắt giữa chừng (chen ngang câu khác): hủy luồng Edge để khỏi rò.
+    res.on('close', () => {
+      if (!done) {
+        try { if (audioStream) audioStream.destroy(); } catch (e) {}
+        finish(new Error('Client ngat ket noi'));
+      }
+    });
+    try {
+      const tts = await getTts(voice);
+      const out = await tts.toStream(text, { rate: voice.rate, pitch: voice.pitch });
+      audioStream = out.audioStream;
+      audioStream.on('data', (d) => {
+        const buf = Buffer.isBuffer(d) ? d : Buffer.from(d);
+        chunks.push(buf);
+        sent += buf.length;
+        if (!firstByte) {
+          firstByte = true;
+          res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' });
+        }
+        res.write(buf);
+      });
+      audioStream.on('error', (e) => finish(e));
+      audioStream.on('end', () => {
+        if (sent >= 100) {
+          const key = voice.key + '|' + text;
+          ttsCache.set(key, Buffer.concat(chunks));
+          if (ttsCache.size > TTS_CACHE_MAX) {
+            ttsCache.delete(ttsCache.keys().next().value);
+          }
+        }
+        if (!firstByte) {
+          // Edge kết thúc mà không ra tiếng nào: coi như lỗi để thử lại.
+          finish(new Error('Edge TTS tra ve audio rong'));
+          return;
+        }
+        try { res.end(); } catch (e) {}
+        finish(null);
+      });
+      audioStream.on('close', () => {
+        if (!done) {
+          if (firstByte) {
+            try { res.end(); } catch (e) {}
+            finish(null);
+          } else {
+            finish(new Error('Edge TTS dong luong som'));
+          }
+        }
+      });
+    } catch (e) {
+      ttsPool.delete(voice.key);
+      finish(e);
+    }
+  });
+}
+
 // Giữ kết nối Edge ấm: đọc một câu ngắn mỗi 50s (bỏ qua cache) để lần đọc
 // thật sau đó không phải bắt tay lại từ đầu — tiết kiệm vài giây và đỡ lỗi
 // do kết nối nguội. Bỏ qua khi đang có câu thật cần đọc.
@@ -270,18 +357,33 @@ app.post('/api/tts', (req, res) => {
   res.json({ ok: true, ttsOn });
 });
 
-app.post('/api/tts-say', async (req, res) => {
-  const text = String((req.body && req.body.text) || '').trim();
+// GET /api/tts-say?text=... — giọng MC phát dần theo luồng (stream):
+// trình duyệt gắn audio.src thẳng vào URL này, mp3 về tới đâu phát tới đó.
+// Câu đã đọc rồi thì trả ngay từ cache (không qua Edge nữa).
+app.get('/api/tts-say', async (req, res) => {
+  const text = String(req.query.text || '').trim();
   if (!text) return res.status(400).json({ ok: false, error: 'Thiếu text' });
   if (text.length > 500) return res.status(400).json({ ok: false, error: 'Câu quá dài (tối đa 500 ký tự)' });
   if (!ttsOn) return res.status(503).json({ ok: false, error: 'Giọng MC đang tắt' });
+  const key = currentVoiceKey + '|' + text;
+  const hit = ttsCache.get(key);
+  if (hit) {
+    ttsCache.delete(key); // đưa lên đầu (LRU đơn giản)
+    ttsCache.set(key, hit);
+    return res.type('audio/mpeg').set('Cache-Control', 'no-store').send(hit);
+  }
+  const streamOnce = () => streamEdgeToRes(text, VOICES[currentVoiceKey], res);
   try {
-    const audio = await synthCached(text, VOICES[currentVoiceKey]);
-    if (!audio || audio.length < 100) throw new Error('Edge TTS trả về audio rỗng');
-    res.type('audio/mpeg').send(audio);
+    await streamOnce();
   } catch (e) {
-    console.error('[tts-say]', e && e.message ? e.message : e);
-    res.status(502).json({ ok: false, error: 'Không đọc được giọng Hoài My lúc này, thử lại sau' });
+    if (res.destroyed || res.writableEnded || res.headersSent) return;
+    // Lỗi trước khi có tiếng: thử lại 1 lần với kết nối mới.
+    try {
+      await streamOnce();
+    } catch (e2) {
+      console.error('[tts-say]', e2 && e2.message ? e2.message : e2);
+      if (!res.headersSent) res.status(502).json({ ok: false, error: 'Không đọc được giọng Hoài My lúc này, thử lại sau' });
+    }
   }
 });
 
